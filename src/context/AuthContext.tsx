@@ -19,6 +19,63 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 /** Never let a failed/slow request keep the app stuck on the loading screen. */
 const AUTH_READY_TIMEOUT_MS = 4000;
 
+// Concurrent auth events (INITIAL_SESSION + token refresh) must not each create a workspace.
+let workspaceSelfHeal: Promise<Workspace | null> | null = null;
+
+/**
+ * Users whose signup-time workspace setup failed would otherwise see endless
+ * loading skeletons on every page: each page waits for a workspace that never
+ * arrives. Create one on the fly instead.
+ */
+function ensureWorkspace(userId: string): Promise<Workspace | null> {
+  if (workspaceSelfHeal) return workspaceSelfHeal;
+  workspaceSelfHeal = (async () => {
+    try {
+      // The id is generated client-side because the RLS SELECT policy may not see
+      // the new row until the membership insert below has landed.
+      const id = crypto.randomUUID();
+      const slug = `ws-${userId.slice(0, 8)}-${Date.now().toString(36)}`;
+      const { error } = await supabase
+        .from('workspaces')
+        .insert({ id, name: 'My workspace', owner_id: userId, slug });
+      if (error) throw error;
+      const { error: memberError } = await supabase
+        .from('workspace_members')
+        .insert({ workspace_id: id, user_id: userId, role: 'owner', status: 'active' });
+      if (memberError) throw memberError;
+      // Best effort trial row; a failure here must not block the app.
+      supabase
+        .from('subscriptions')
+        .insert({ workspace_id: id, status: 'trialing', billing_cycle: 'monthly' })
+        .then(() => {}, () => {});
+      console.warn('[auth] workspace was missing — created a new one', id);
+      const { data: ws, error: fetchError } = await supabase
+        .from('workspaces')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      return (ws as Workspace) ?? {
+        id,
+        name: 'My workspace',
+        slug,
+        owner_id: userId,
+        logo_url: null,
+        industry: null,
+        company_size: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    } catch (err) {
+      console.warn('[auth] workspace self-heal failed:', err instanceof Error ? err.message : err);
+      return null;
+    } finally {
+      workspaceSelfHeal = null;
+    }
+  })();
+  return workspaceSelfHeal;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -26,8 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // Profile + workspace in a single parallel round trip (was 2 sequential batches).
-  const loadUserData = useCallback(async (userId: string) => {
-    const [{ data: prof }, { data: member }] = await Promise.all([
+  const loadUserData = useCallback(async (userId: string, email?: string) => {
+    const [profRes, memberRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase
         .from('workspace_members')
@@ -37,17 +94,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .limit(1)
         .maybeSingle(),
     ]);
-    setProfile((prof as Profile) ?? null);
+    if (profRes.error) console.warn('[auth] profiles query failed:', profRes.error.message);
+    if (memberRes.error) console.warn('[auth] workspace_members query failed:', memberRes.error.message);
 
-    const embedded = (member as { workspace?: Workspace } | null)?.workspace;
-    if (embedded) {
-      setWorkspace(embedded);
-    } else if (member?.workspace_id) {
-      const { data: ws } = await supabase.from('workspaces').select('*').eq('id', member.workspace_id).maybeSingle();
-      setWorkspace((ws as Workspace) ?? null);
-    } else {
-      setWorkspace(null);
+    let prof = (profRes.data as Profile) ?? null;
+    if (!prof && email) {
+      // Signup's profile insert can fail silently; retry here so the app has a profile.
+      const { data: created, error } = await supabase
+        .from('profiles')
+        .insert({ id: userId, email })
+        .select('*')
+        .maybeSingle();
+      if (error) console.warn('[auth] profile self-heal failed:', error.message);
+      prof = (created as Profile) ?? null;
     }
+    setProfile(prof);
+
+    const member = memberRes.data as { workspace_id?: string; workspace?: Workspace } | null;
+    let ws = member?.workspace ?? null;
+    if (!ws && member?.workspace_id) {
+      const { data, error } = await supabase.from('workspaces').select('*').eq('id', member.workspace_id).maybeSingle();
+      if (error) console.warn('[auth] workspaces query failed:', error.message);
+      ws = (data as Workspace) ?? null;
+    }
+    // Only self-heal on a clean "no membership" result. If the query itself errored
+    // (e.g. RLS recursion), we can't know whether a workspace exists — creating one
+    // on every login would spam duplicates.
+    if (!ws && !memberRes.error) {
+      ws = await ensureWorkspace(userId);
+    }
+    setWorkspace(ws);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -55,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
       if (data.session?.user) {
-        await loadUserData(data.session.user.id);
+        await loadUserData(data.session.user.id, data.session.user.email ?? undefined);
       } else {
         setProfile(null);
         setWorkspace(null);
@@ -81,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(data.session);
         if (data.session?.user) {
           try {
-            await loadUserData(data.session.user.id);
+            await loadUserData(data.session.user.id, data.session.user.email ?? undefined);
           } catch (err) {
             console.error('[auth] profile load failed', err);
           }
@@ -102,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (s?.user) {
         // Deliberately not awaited: awaiting Supabase calls inside this callback
         // can deadlock against the auth client's internal lock.
-        loadUserData(s.user.id).catch((err) => console.error('[auth] profile load failed', err));
+        loadUserData(s.user.id, s.user.email ?? undefined).catch((err) => console.error('[auth] profile load failed', err));
       } else {
         setProfile(null);
         setWorkspace(null);

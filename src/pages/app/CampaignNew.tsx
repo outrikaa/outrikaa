@@ -38,7 +38,10 @@ export default function CampaignNew() {
   });
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
         const [l, m, s] = await Promise.all([

@@ -25,7 +25,10 @@ export default function Tasks() {
   const [done, setDone] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setTasks([]);
+      return;
+    }
     (async () => {
       try {
         const [leadCount, campaignCount, mailboxCount, scheduled, summary] = await Promise.all([

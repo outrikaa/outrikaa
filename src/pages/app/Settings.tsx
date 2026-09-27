@@ -190,7 +190,10 @@ function TeamSection() {
   const [pending, setPending] = useState<WorkspaceMember | null>(null);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     workspaceService
       .members(workspace.id)
       .then((m) => setMembers(m as unknown as (WorkspaceMember & { profile?: Profile | null })[]))
@@ -503,7 +506,10 @@ function ApiSection() {
   const [pending, setPending] = useState<ApiKey | null>(null);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     apiKeyService
       .list(workspace.id)
       .then(setKeys)

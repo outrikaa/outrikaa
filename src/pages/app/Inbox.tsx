@@ -38,7 +38,10 @@ export default function Inbox() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     messageService
       .threads(workspace.id)
       .then((t) => {

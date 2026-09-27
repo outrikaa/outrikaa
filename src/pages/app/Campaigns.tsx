@@ -27,7 +27,10 @@ export default function Campaigns() {
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const refresh = async () => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     try {
       setCampaigns(await campaignService.list(workspace.id));
     } catch (err) {

@@ -25,7 +25,10 @@ export default function Integrations() {
   const [pending, setPending] = useState<Integration | null>(null);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     integrationService
       .list(workspace.id)
       .then(setRows)

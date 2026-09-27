@@ -28,7 +28,10 @@ export default function Mailboxes() {
   const [confirm, setConfirm] = useState<Mailbox | null>(null);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     mailboxService
       .list(workspace.id)
       .then(setMailboxes)

@@ -21,7 +21,10 @@ export default function Templates() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     templateService
       .list(workspace.id)
       .then(setTemplates)

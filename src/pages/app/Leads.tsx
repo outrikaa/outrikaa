@@ -61,7 +61,10 @@ export default function Leads() {
   }, [params]);
 
   const refresh = async () => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     try {
       const [l, ls] = await Promise.all([
         leadService.list(workspace.id),

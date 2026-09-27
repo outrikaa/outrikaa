@@ -26,3 +26,6 @@ dist-ssr
 *.cjs
 apply-log.txt
 !*.config.js
+
+# typescript incremental build cache
+*.tsbuildinfo

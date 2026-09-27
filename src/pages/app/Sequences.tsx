@@ -19,7 +19,10 @@ export default function Sequences() {
   const [confirm, setConfirm] = useState<Sequence | null>(null);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     sequenceService
       .list(workspace.id)
       .then(setSequences)

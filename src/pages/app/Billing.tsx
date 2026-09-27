@@ -27,7 +27,10 @@ export default function Billing() {
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
         const [p, s, inv] = await Promise.all([

@@ -22,7 +22,10 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     let alive = true;
     setLoading(true);
     (async () => {
