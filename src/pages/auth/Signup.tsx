@@ -28,9 +28,15 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      const { user } = await authService.signUp(email, password, { full_name: name });
+      const { user, session } = await authService.signUp(email, password, { full_name: name });
 
-      if (user) {
+      if (!user) {
+        setError('Unable to create account. Please try again.');
+        return;
+      }
+
+      // Email verification is disabled (auto-confirm): session comes back immediately.
+      if (session) {
         try {
           await db.insert('profiles', { id: user.id, email, full_name: name });
         } catch {
@@ -56,8 +62,12 @@ export default function Signup() {
           toast.warning('Your account was created but workspace setup failed. Sign in again to retry.', 'Workspace setup');
         }
         await refresh();
+        toast.success('Account created', 'Welcome to OUTRIKAA');
+        navigate('/app/dashboard', { replace: true });
+        return;
       }
 
+      // Email verification still enabled: no session yet.
       toast.success('Account created', 'Check your inbox to verify your email');
       navigate('/verify-email', { state: { email } });
     } catch (err) {

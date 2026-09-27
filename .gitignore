@@ -21,3 +21,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# local dev scripts (may contain tokens)
+*.cjs
+apply-log.txt
+!*.config.js
