@@ -36,20 +36,25 @@ export default function Signup() {
         } catch {
           /* profile may already exist via trigger */
         }
-        const ws = await workspaceService.create(
-          name ? `${name.split(' ')[0]}'s Workspace` : `${slugify(email.split('@')[0])} workspace`,
-          user.id,
-          { slug: slugify(email.split('@')[0]) }
-        );
-        await db.insert('notifications', {
-          user_id: user.id,
-          workspace_id: ws.id,
-          type: 'welcome',
-          title: 'Welcome to OUTRIKAA',
-          message: 'Import your first list of leads to get started.',
-          icon: 'sparkles',
-          link: '/app/leads',
-        });
+        try {
+          const ws = await workspaceService.create(
+            name ? `${name.split(' ')[0]}'s Workspace` : `${slugify(email.split('@')[0])} workspace`,
+            user.id,
+            { slug: slugify(email.split('@')[0]) }
+          );
+          await db.insert('notifications', {
+            user_id: user.id,
+            workspace_id: ws.id,
+            type: 'welcome',
+            title: 'Welcome to OUTRIKAA',
+            message: 'Import your first list of leads to get started.',
+            icon: 'sparkles',
+            link: '/app/leads',
+          });
+        } catch (setupErr) {
+          console.error('workspace setup failed', setupErr);
+          toast.warning('Your account was created but workspace setup failed. Sign in again to retry.', 'Workspace setup');
+        }
         await refresh();
       }
 
