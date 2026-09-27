@@ -4,10 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1020" />
     <title>Outrikaa AI Outreach SaaS</title>
-    <meta property="og:image" content="https://bolt.new/static/og_default.png" />
+    <meta
+      name="description"
+      content="Outrikaa — AI outreach platform. Import leads, write first-touch emails, and track replies in one place."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Outrikaa AI Outreach SaaS" />
+    <meta property="og:description" content="Your outreach, finally in one place." />
+    <meta property="og:image" content="https://outrikaa.vercel.app/vite.svg" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://bolt.new/static/og_default.png" />
+    <meta name="twitter:image" content="https://outrikaa.vercel.app/vite.svg" />
+    <!-- Warm up the Supabase connection before the bundle runs, so the first
+         auth/data request does not pay DNS + TCP + TLS setup latency. -->
+    <link rel="preconnect" href="https://hneizmytlvmpzeifhyyt.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://hneizmytlvmpzeifhyyt.supabase.co" />
   </head>
   <body>
     <div id="root"></div>
