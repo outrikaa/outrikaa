@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 import type { Mailbox } from '@/types';
 
 export type MailProvider = 'gmail' | 'outlook' | 'smtp' | 'custom';
@@ -21,26 +22,64 @@ export interface MailboxHealth {
   message: string;
 }
 
+export interface ConnectResult {
+  ok: boolean;
+  message: string;
+  needsCredentials?: boolean;
+}
+
+function messageFrom(error: unknown, fallback: string): string {
+  const anyErr = error as { context?: Response; message?: string } | null;
+  if (anyErr?.context && typeof anyErr.context === 'object' && 'json' in anyErr.context) {
+    return fallback;
+  }
+  return anyErr?.message || fallback;
+}
+
 /**
- * Provider abstraction. Real delivery requires OAuth / SMTP credentials
- * configured in Supabase Edge Functions — until then every provider
- * reports `credentials_required` so the UI never fakes a connection.
+ * Gmail connection happens through an OAuth redirect:
+ * mailbox-connect returns a Google consent URL, the browser navigates there,
+ * and mailbox-google-callback lands back on /app/mailboxes.
  */
 export const emailService = {
-  async connect(_provider: MailProvider, _config: Record<string, unknown>): Promise<{ ok: boolean; message: string }> {
+  async connect(provider: MailProvider, config: { email: string; workspaceId: string }): Promise<ConnectResult> {
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mailbox-connect`, {
+      const { data, error } = await supabase.functions.invoke('mailbox-connect', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ provider: _provider, config: _config }),
+        body: { provider, email: config.email, workspaceId: config.workspaceId },
       });
-      if (res.ok) return { ok: true, message: 'Mailbox connected' };
-      return { ok: false, message: 'Provider credentials are not configured yet.' };
+
+      if (error) {
+        const status = (error as { context?: Response }).context?.status;
+        if (status === 501) {
+          return { ok: false, needsCredentials: true, message: 'Provider credentials are not configured yet.' };
+        }
+        if (status === 401 || status === 403) {
+          return { ok: false, message: messageFrom(error, 'You are not allowed to connect this mailbox.') };
+        }
+        if (status === 404) {
+          return { ok: false, needsCredentials: true, message: 'Provider credentials are not configured yet.' };
+        }
+        return { ok: false, message: messageFrom(error, 'Could not start the Gmail connection.') };
+      }
+
+      if (data?.url) {
+        window.location.assign(data.url);
+        return { ok: true, message: 'Redirecting to Google…' };
+      }
+      return { ok: false, needsCredentials: true, message: data?.message ?? 'Provider credentials are not configured yet.' };
     } catch {
-      return { ok: false, message: 'Provider credentials are not configured yet.' };
+      return { ok: false, needsCredentials: true, message: 'Provider credentials are not configured yet.' };
+    }
+  },
+
+  async status(): Promise<{ configured: boolean }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('mailbox-connect', { method: 'GET' });
+      if (error || !data?.ok) return { configured: false };
+      return { configured: Boolean(data.google_configured) };
+    } catch {
+      return { configured: false };
     }
   },
 
@@ -48,12 +87,40 @@ export const emailService = {
     return { ok: true };
   },
 
-  async send(_input: ComposeInput): Promise<SendResult> {
-    return { ok: false, error: 'Sending requires mailbox credentials (Gmail/Outlook OAuth or SMTP).' };
+  async send(input: ComposeInput): Promise<SendResult> {
+    if (!input.mailboxId) {
+      return { ok: false, error: 'Select a mailbox before sending.' };
+    }
+    try {
+      const { data, error } = await supabase.functions.invoke('mailbox-send', {
+        method: 'POST',
+        body: {
+          mailboxId: input.mailboxId,
+          to: input.to,
+          subject: input.subject,
+          body: input.body,
+          inReplyTo: input.inReplyTo,
+        },
+      });
+      if (error) {
+        const status = (error as { context?: Response }).context?.status;
+        if (status === 404 || status === 409) {
+          return { ok: false, error: 'This mailbox is not connected. Connect it from Mailboxes.' };
+        }
+        if (status === 501) {
+          return { ok: false, error: messageFrom(error, 'Sending is not configured yet.') };
+        }
+        return { ok: false, error: messageFrom(error, 'Sending failed. Try again.') };
+      }
+      if (data?.ok) return { ok: true, messageId: data.messageId ?? undefined };
+      return { ok: false, error: data?.message ?? 'Sending failed.' };
+    } catch {
+      return { ok: false, error: 'Sending failed. Try again.' };
+    }
   },
 
   async schedule(_input: ComposeInput & { scheduledFor: string }): Promise<SendResult> {
-    return { ok: false, error: 'Scheduling requires mailbox credentials (Gmail/Outlook OAuth or SMTP).' };
+    return { ok: false, error: 'Scheduling is not enabled yet.' };
   },
 
   health(mailbox: Pick<Mailbox, 'status' | 'health_score'>): MailboxHealth {

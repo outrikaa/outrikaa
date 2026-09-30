@@ -26,6 +26,7 @@ export default function Mailboxes() {
   const [email, setEmail] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [confirm, setConfirm] = useState<Mailbox | null>(null);
+  const [credentialsConfigured, setCredentialsConfigured] = useState(false);
 
   useEffect(() => {
     if (!workspace) {
@@ -40,58 +41,59 @@ export default function Mailboxes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace]);
 
+  useEffect(() => {
+    emailService.status().then((s) => setCredentialsConfigured(s.configured));
+
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get('connected');
+    const connectError = params.get('connect_error');
+    if (connected || connectError) {
+      if (connected) toast.success('Mailbox connected', 'Gmail OAuth completed');
+      else if (connectError === 'access_denied') toast.error('Google connection cancelled.');
+      else if (connectError === 'email_mismatch') toast.error('That Google account does not match the mailbox address.');
+      else toast.error('Gmail connection failed', connectError ?? 'unknown');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (connected && workspace) {
+        mailboxService.list(workspace.id).then(setMailboxes).catch(() => undefined);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace]);
+
   const connect = async () => {
     if (!email.trim()) return toast.error('Enter the mailbox address');
+    if (!workspace) return toast.error('No workspace selected');
     setConnecting(true);
-    const result = await emailService.connect(provider as 'gmail', { email });
+    const result = await emailService.connect(provider as 'gmail', { email, workspaceId: workspace.id });
     setConnecting(false);
 
     if (result.ok) {
-      if (workspace) {
-        try {
-          const created = await mailboxService.create({
-            workspace_id: workspace.id,
-            email_address: email,
-            provider: 'gmail',
-            status: 'connected',
-            daily_limit: 50,
-            sent_today: 0,
-            sending_days: ['mon', 'tue', 'wed', 'thu', 'fri'],
-            sending_start_time: '09:00',
-            sending_end_time: '17:00',
-            health_score: 100,
-            bounce_rate: 0,
-            connected_at: new Date().toISOString(),
-          });
-          setMailboxes((prev) => [created, ...prev]);
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : 'Could not save mailbox');
-        }
-      }
-      toast.success('Mailbox connected');
+      // Browser is navigating to Google's consent screen; the mailbox row
+      // is created by the OAuth callback after consent succeeds.
+      toast.success('Continue in the Google window', 'Approve access to finish connecting');
       setOpen(false);
-      setEmail('');
-    } else {
-      toast.error(result.message, 'Credentials required');
-      if (workspace) {
-        try {
-          const pending = await mailboxService.create({
-            workspace_id: workspace.id,
-            email_address: email,
-            provider: 'gmail',
-            status: 'needs_attention',
-            daily_limit: 50,
-            sent_today: 0,
-            sending_days: ['mon', 'tue', 'wed', 'thu', 'fri'],
-            sending_start_time: '09:00',
-            sending_end_time: '17:00',
-            health_score: 40,
-            bounce_rate: 0,
-          });
-          setMailboxes((prev) => [pending, ...prev]);
-        } catch {
-          /* ignore */
-        }
+      return;
+    }
+
+    toast.error(result.message, result.needsCredentials ? 'Credentials required' : 'Connection failed');
+    if (result.needsCredentials) {
+      try {
+        const pending = await mailboxService.create({
+          workspace_id: workspace.id,
+          email_address: email,
+          provider: 'gmail',
+          status: 'needs_attention',
+          daily_limit: 50,
+          sent_today: 0,
+          sending_days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+          sending_start_time: '09:00',
+          sending_end_time: '17:00',
+          health_score: 40,
+          bounce_rate: 0,
+        });
+        setMailboxes((prev) => [pending, ...prev]);
+      } catch {
+        /* ignore */
       }
     }
   };
@@ -104,16 +106,18 @@ export default function Mailboxes() {
         actions={<Button onClick={() => setOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>Connect mailbox</Button>}
       />
 
-      <div className="mb-5 rounded-2xl border border-warning-500/25 bg-warning-500/5 p-4 flex items-start gap-3">
-        <Shield className="h-4.5 w-4.5 h-[18px] w-[18px] text-warning-400 shrink-0 mt-0.5" />
-        <div className="text-sm text-warning-100/90">
-          <p className="font-medium">OAuth / SMTP credentials are not configured yet</p>
-          <p className="text-xs text-warning-200/70 mt-1 leading-relaxed">
-            Mailboxes can be registered here, but sending stays disabled until Gmail, Google Workspace, Outlook or
-            Microsoft 365 credentials are added to the Supabase Edge Functions. No passwords are ever stored in the app.
-          </p>
+      {!credentialsConfigured && (
+        <div className="mb-5 rounded-2xl border border-warning-500/25 bg-warning-500/5 p-4 flex items-start gap-3">
+          <Shield className="h-[18px] w-[18px] text-warning-400 shrink-0 mt-0.5" />
+          <div className="text-sm text-warning-100/90">
+            <p className="font-medium">OAuth credentials are not configured yet</p>
+            <p className="text-xs text-warning-200/70 mt-1 leading-relaxed">
+              Gmail connection starts only after Google OAuth credentials (Client ID / Secret) are added to the
+              Supabase Edge Functions. No passwords are ever stored in the app.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -238,11 +242,11 @@ export default function Mailboxes() {
             ))}
           </div>
           <Input label="Mailbox address" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <div className="flex items-start gap-2.5 rounded-xl border border-warning-500/25 bg-warning-500/5 p-3.5">
-            <AlertTriangle className="h-4 w-4 text-warning-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-warning-200/80 leading-relaxed">
-              Until provider credentials are configured server-side, this mailbox will be registered as
-              <span className="text-white"> needs attention</span> and sending will stay disabled.
+          <div className="flex items-start gap-2.5 rounded-xl border border-primary-500/25 bg-primary-500/5 p-3.5">
+            <AlertTriangle className="h-4 w-4 text-primary-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-slate-300 leading-relaxed">
+              You will be redirected to Google to approve access. The mailbox is saved only after
+              the signed-in Google account matches <span className="text-white">{email || 'this address'}</span>.
             </p>
           </div>
         </div>

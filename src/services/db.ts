@@ -111,6 +111,7 @@ export const workspaceService = {
 export const leadService = {
   list: (workspaceId: string, opts: Parameters<typeof db.list>[1] = {}) =>
     db.list<Lead>('leads', { filters: { workspace_id: workspaceId }, ...opts }),
+  get: (id: string) => db.get<Lead>('leads', id),
   create: (values: Partial<Lead>) => db.insert<Lead>('leads', values),
   createMany: (values: Partial<Lead>[]) => db.insertMany<Lead>('leads', values),
   update: (id: string, values: Partial<Lead>) => db.update<Lead>('leads', id, values),

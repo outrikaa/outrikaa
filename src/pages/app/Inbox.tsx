@@ -4,7 +4,7 @@ import { Inbox as InboxIcon, Archive, Reply, Tag, RefreshCw, Send, Search } from
 import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, Button, Badge, Input, Textarea, EmptyState, Skeleton, useToast, Tabs } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { messageService } from '@/services/db';
+import { messageService, mailboxService, leadService } from '@/services/db';
 import type { EmailThread } from '@/types';
 import { timeAgo, cn, truncate } from '@/lib/utils';
 
@@ -75,17 +75,39 @@ export default function Inbox() {
   };
 
   const sendReply = async () => {
-    if (!reply.trim()) return;
+    if (!reply.trim() || !active || !workspace) return;
     setSending(true);
-    const res = await import('@/services/email').then((m) =>
-      m.emailService.send({ mailboxId: '', to: '', subject: active?.subject ?? '', body: reply })
-    );
-    setSending(false);
-    if (res.ok) {
-      toast.success('Reply sent');
-      setReply('');
-    } else {
-      toast.error(res.error ?? 'Could not send', 'Mailbox credentials required');
+    try {
+      const [{ emailService }, mailboxes, lead] = await Promise.all([
+        import('@/services/email'),
+        mailboxService.list(workspace.id),
+        active.lead_id ? leadService.get(active.lead_id).catch(() => null) : Promise.resolve(null),
+      ]);
+      const mailbox = mailboxes.find((m) => m.status === 'connected');
+      if (!mailbox) {
+        toast.error('Connect a sending mailbox first', 'No mailbox');
+        return;
+      }
+      if (!lead?.email) {
+        toast.error('No lead email found for this thread');
+        return;
+      }
+      const res = await emailService.send({
+        mailboxId: mailbox.id,
+        to: lead.email,
+        subject: active.subject ?? '',
+        body: reply,
+      });
+      if (res.ok) {
+        toast.success('Reply sent');
+        setReply('');
+      } else {
+        toast.error(res.error ?? 'Could not send');
+      }
+    } catch {
+      toast.error('Could not send the reply');
+    } finally {
+      setSending(false);
     }
   };
 
