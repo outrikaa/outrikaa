@@ -108,15 +108,51 @@ export function downloadCSV(filename: string, rows: object[]) {
   URL.revokeObjectURL(link.href);
 }
 
-export function parseCSV(text: string): string[][] {
+export function detectDelimiter(text: string): string {
+  const lines = text
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .slice(0, 10);
+  const candidates = [',', ';', '\t', '|'];
+  let best = ',';
+  let bestScore = -1;
+  for (const d of candidates) {
+    const counts: number[] = [];
+    for (const line of lines) {
+      let count = 0;
+      let inQuotes = false;
+      for (const ch of line) {
+        if (ch === '"') inQuotes = !inQuotes;
+        else if (!inQuotes && ch === d) count++;
+      }
+      counts.push(count);
+    }
+    if (counts.length === 0) continue;
+    const first = counts[0];
+    if (first === 0) continue;
+    const consistent = counts.every((c) => c === first);
+    const score = first * (consistent ? 10 : 1);
+    if (score > bestScore) {
+      bestScore = score;
+      best = d;
+    }
+  }
+  return best;
+}
+
+export function parseCSV(text: string, delimiter?: string): string[][] {
+  const sep = delimiter ?? detectDelimiter(text);
   const rows: string[][] = [];
   let currentRow: string[] = [];
   let currentField = '';
   let inQuotes = false;
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const nextChar = text[i + 1];
+  const cleaned = text.replace(/^\uFEFF/, '');
+
+  for (let i = 0; i < cleaned.length; i++) {
+    const char = cleaned[i];
+    const nextChar = cleaned[i + 1];
 
     if (inQuotes) {
       if (char === '"' && nextChar === '"') {
@@ -130,7 +166,7 @@ export function parseCSV(text: string): string[][] {
     } else {
       if (char === '"') {
         inQuotes = true;
-      } else if (char === ',') {
+      } else if (char === sep) {
         currentRow.push(currentField);
         currentField = '';
       } else if (char === '\n' || char === '\r') {

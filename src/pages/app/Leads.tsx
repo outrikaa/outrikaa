@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { leadService } from '@/services/db';
 import type { Lead, LeadList, LeadStatus } from '@/types';
 import { parseCSV, downloadCSV, formatDate, isValidEmail, truncate } from '@/lib/utils';
+import { LEAD_FIELDS, autoDetectColumns, rowToLead } from '@/lib/leadImport';
 
 const statusTone: Record<LeadStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info' | 'muted'> = {
   new: 'muted',
@@ -27,10 +28,7 @@ const statusTone: Record<LeadStatus, 'default' | 'primary' | 'success' | 'warnin
   unsubscribed: 'muted',
 };
 
-const COLUMNS = [
-  'first_name', 'last_name', 'email', 'phone', 'company', 'job_title',
-  'website', 'linkedin_url', 'location', 'industry', 'company_size', 'source',
-] as const;
+const COLUMNS = LEAD_FIELDS;
 
 type Mapping = Record<string, string>;
 
@@ -494,31 +492,23 @@ function CSVImport({
       const parsed = parseCSV(String(reader.result ?? ''));
       if (parsed.length < 2) return toast.error('CSV needs a header row and at least one data row');
       const h = parsed[0].map((x) => x.trim());
+      const body = parsed.slice(1);
       setHeaders(h);
-      setRows(parsed.slice(1));
-      const auto: Mapping = {};
-      h.forEach((header, i) => {
-        const norm = header.toLowerCase().replace(/[\s_-]/g, '');
-        const match = COLUMNS.find(
-          (c) => norm === c || norm === c + 'name' || norm.includes(c) || (c === 'email' && norm.includes('mail')) || (c === 'company' && norm.includes('org'))
-        );
-        if (match && !Object.values(auto).includes(match)) auto[String(i)] = match;
-      });
-      setMapping(auto);
+      setRows(body);
+      setMapping(autoDetectColumns(h, body) as Mapping);
       setStep('map');
     };
     reader.readAsText(file);
   };
 
-  const mapped = useMemo(() => {
-    return rows.map((row) => {
-      const obj: Record<string, string> = {};
-      for (const [idx, col] of Object.entries(mapping)) {
-        if (col) obj[col] = (row[Number(idx)] ?? '').trim();
-      }
-      return obj;
-    });
-  }, [rows, mapping]);
+  const mapped = useMemo(() => rows.map((row) => rowToLead(row, mapping)), [rows, mapping]);
+
+  const previewFields = useMemo(() => {
+    const mappedFields = new Set(Object.values(mapping));
+    return COLUMNS.filter(
+      (c) => mappedFields.has(c) || ((c === 'first_name' || c === 'last_name') && mappedFields.has('full_name'))
+    );
+  }, [mapping]);
 
   const validation = useMemo(() => {
     const seen = new Set(existingEmails);
@@ -598,7 +588,7 @@ function CSVImport({
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -608,7 +598,8 @@ function CSVImport({
           <FileSpreadsheet className="h-10 w-10 mx-auto text-primary-400 mb-3" />
           <p className="text-sm font-medium text-white">Drop your CSV here or click to browse</p>
           <p className="text-xs text-slate-500 mt-1.5">
-            Required: email column. Optional: first name, last name, company, job title and more.
+            Any column names work — we auto-detect emails, names, company and more.
+            Excel? Save the sheet as CSV first.
           </p>
         </div>
       )}
@@ -616,23 +607,42 @@ function CSVImport({
       {step === 'map' && (
         <div className="space-y-4">
           <p className="text-sm text-slate-400">
-            Detected <span className="text-white font-medium">{headers.length}</span> columns and{' '}
-            <span className="text-white font-medium">{rows.length}</span> rows. Map them to lead fields.
+            Auto-detected <span className="text-white font-medium">{headers.length}</span> columns and{' '}
+            <span className="text-white font-medium">{rows.length}</span> rows. Review the mapping — anything wrong, fix it below.
           </p>
+          {!Object.values(mapping).includes('email') && (
+            <p className="flex items-start gap-2 text-xs text-warning-300 bg-warning-500/10 border border-warning-500/25 rounded-lg px-3 py-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-px" />
+              No email column detected — pick the column that contains emails before continuing.
+            </p>
+          )}
           <div className="grid sm:grid-cols-2 gap-3 max-h-[46vh] overflow-y-auto pr-1">
             {headers.map((h, i) => (
               <div key={i} className="rounded-xl border border-white/8 bg-white/4 p-3">
-                <p className="text-[11px] text-slate-500 mb-1.5 truncate">{h}</p>
+                <p className="text-[11px] text-slate-500 mb-1.5 truncate">
+                  {h || <span className="italic">column {i + 1}</span>}
+                  {mapping[String(i)] && <span className="text-primary-400"> → {mapping[String(i)].replace(/_/g, ' ')}</span>}
+                </p>
                 <Select
                   value={mapping[String(i)] ?? ''}
                   onChange={(e) => {
                     const next = { ...mapping };
-                    if (e.target.value) next[String(i)] = e.target.value;
-                    else delete next[String(i)];
+                    const value = e.target.value;
+                    if (value) {
+                      Object.keys(next).forEach((k) => {
+                        if (k !== String(i) && next[k] === value) delete next[k];
+                      });
+                      next[String(i)] = value;
+                    } else {
+                      delete next[String(i)];
+                    }
                     setMapping(next);
                   }}
                   placeholder="Ignore this column"
-                  options={COLUMNS.map((c) => ({ value: c, label: c.replace(/_/g, ' ') }))}
+                  options={[
+                    { value: 'full_name', label: 'full name (split into first/last)' },
+                    ...COLUMNS.map((c) => ({ value: c as string, label: c.replace(/_/g, ' ') })),
+                  ]}
                 />
               </div>
             ))}
@@ -641,7 +651,15 @@ function CSVImport({
             <Button variant="ghost" onClick={() => setStep('upload')}>
               <ChevronLeft className="h-4 w-4 mr-1" /> Back
             </Button>
-            <Button onClick={() => setStep('preview')} rightIcon={<ArrowRight className="h-4 w-4" />}>
+            <Button
+              onClick={() => {
+                if (!Object.values(mapping).includes('email')) {
+                  return toast.error('Map a column to email first');
+                }
+                setStep('preview');
+              }}
+              rightIcon={<ArrowRight className="h-4 w-4" />}
+            >
               Preview {mapped.length} rows
             </Button>
           </div>
@@ -669,7 +687,7 @@ function CSVImport({
             <table className="w-full text-sm">
               <thead className="bg-white/5 sticky top-0">
                 <tr>
-                  {COLUMNS.filter((c) => Object.values(mapping).includes(c)).map((c) => (
+                  {previewFields.map((c) => (
                     <th key={c} className="px-3 py-2 text-left text-[11px] uppercase tracking-wider text-slate-500">
                       {c.replace(/_/g, ' ')}
                     </th>
@@ -679,7 +697,7 @@ function CSVImport({
               <tbody className="divide-y divide-white/6">
                 {validation.valid.slice(0, 25).map((r, i) => (
                   <tr key={i} className="hover:bg-white/4">
-                    {COLUMNS.filter((c) => Object.values(mapping).includes(c)).map((c) => (
+                    {previewFields.map((c) => (
                       <td key={c} className="px-3 py-2 text-slate-300 whitespace-nowrap">
                         {truncate(r[c] || '—', 28)}
                       </td>
