@@ -50,6 +50,7 @@ export default function Leads() {
   const [showDelete, setShowDelete] = useState(false);
   const [newListOpen, setNewListOpen] = useState(false);
   const [newListName, setNewListName] = useState('');
+  const [memberIds, setMemberIds] = useState<Set<string> | null>(null);
   const pageSize = 25;
 
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', company: '', job_title: '' });
@@ -82,15 +83,24 @@ export default function Leads() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace]);
 
+  useEffect(() => {
+    if (!listId) {
+      setMemberIds(null);
+      return;
+    }
+    leadService
+      .members(listId)
+      .then((m) => setMemberIds(new Set(m.map((x) => x.lead_id))))
+      .catch(() => setMemberIds(new Set()));
+  }, [listId]);
+
   const filtered = useMemo(() => {
     let out = leads;
     if (tab === 'recent') out = out.filter((l) => Date.now() - new Date(l.created_at).getTime() < 7 * 86400000);
     if (tab === 'contacted') out = out.filter((l) => ['contacted', 'opened', 'clicked', 'replied', 'positive_reply', 'meeting'].includes(l.status));
     if (status) out = out.filter((l) => l.status === status);
     if (listId) {
-      const memberIds = new Set<string>();
-      out = out.filter(() => true);
-      void memberIds;
+      out = memberIds ? out.filter((l) => memberIds.has(l.id)) : [];
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -103,7 +113,7 @@ export default function Leads() {
       );
     }
     return out;
-  }, [leads, tab, status, search, listId]);
+  }, [leads, tab, status, search, listId, memberIds]);
 
   const pageRows = filtered.slice(page * pageSize, page * pageSize + pageSize);
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -444,7 +454,10 @@ export default function Leads() {
         workspaceId={workspace?.id ?? ''}
         existingEmails={new Set(leads.map((l) => l.email.toLowerCase()))}
         onDone={(summary) => {
-          toast.success(`Imported ${summary.imported} leads`, `${summary.skipped} duplicates · ${summary.invalid} invalid`);
+          toast.success(
+            `Imported ${summary.imported} leads`,
+            `${summary.listName ? `List "${summary.listName}" · ` : ''}${summary.skipped} duplicates · ${summary.invalid} invalid`
+          );
           refresh();
           setShowImport(false);
           setParams({});
@@ -465,14 +478,15 @@ function CSVImport({
   onClose: () => void;
   workspaceId: string;
   existingEmails: Set<string>;
-  onDone: (s: { imported: number; skipped: number; invalid: number }) => void;
+  onDone: (s: { imported: number; skipped: number; invalid: number; listName?: string }) => void;
 }) {
   const [step, setStep] = useState<'upload' | 'map' | 'preview' | 'result'>('upload');
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Mapping>({});
   const [importing, setImporting] = useState(false);
-  const [summary, setSummary] = useState({ imported: 0, skipped: 0, invalid: 0, total: 0 });
+  const [fileName, setFileName] = useState('');
+  const [summary, setSummary] = useState({ imported: 0, skipped: 0, invalid: 0, total: 0, listName: '' });
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
@@ -482,7 +496,8 @@ function CSVImport({
       setHeaders([]);
       setRows([]);
       setMapping({});
-      setSummary({ imported: 0, skipped: 0, invalid: 0, total: 0 });
+      setFileName('');
+      setSummary({ imported: 0, skipped: 0, invalid: 0, total: 0, listName: '' });
     }
   }, [open]);
 
@@ -493,6 +508,7 @@ function CSVImport({
       if (parsed.length < 2) return toast.error('CSV needs a header row and at least one data row');
       const h = parsed[0].map((x) => x.trim());
       const body = parsed.slice(1);
+      setFileName(file.name);
       setHeaders(h);
       setRows(body);
       setMapping(autoDetectColumns(h, body) as Mapping);
@@ -553,14 +569,39 @@ function CSVImport({
         tags: [],
         custom_fields: {},
       }));
+      const createdIds: string[] = [];
       for (let i = 0; i < payload.length; i += 200) {
-        await leadService.createMany(payload.slice(i, i + 200));
+        const batch = await leadService.createMany(payload.slice(i, i + 200));
+        createdIds.push(...batch.map((l) => l.id));
       }
+
+      // Put imported leads into a list so campaigns can select it right away.
+      const listName =
+        fileName.replace(/\.[^.]+$/, '').trim().slice(0, 60) ||
+        `Import ${new Date().toISOString().slice(0, 10)}`;
+      let createdListName = '';
+      try {
+        const list = await leadService.createList({
+          workspace_id: workspaceId,
+          name: listName,
+          description: `Imported from ${fileName || 'CSV upload'}`,
+          lead_count: createdIds.length,
+          color: '#3B82F6',
+        });
+        for (let i = 0; i < createdIds.length; i += 200) {
+          await leadService.addMembers(list.id, createdIds.slice(i, i + 200));
+        }
+        createdListName = list.name;
+      } catch {
+        /* leads imported; list creation is best-effort */
+      }
+
       setSummary({
         imported: validation.valid.length,
         skipped: validation.dupes,
         invalid: validation.invalid,
         total: mapped.length,
+        listName: createdListName,
       });
       setStep('result');
     } catch (err) {
@@ -735,6 +776,11 @@ function CSVImport({
           <p className="text-sm text-slate-400 mt-1.5">
             {summary.imported} imported · {summary.skipped} duplicates · {summary.invalid} invalid of {summary.total} rows.
           </p>
+          {summary.listName && (
+            <p className="text-sm text-primary-300 mt-2">
+              Added to list <span className="font-medium text-white">“{summary.listName}”</span> — pick it as the lead list in your campaign.
+            </p>
+          )}
           <Button
             className="mt-6"
             onClick={() => onDone(summary)}

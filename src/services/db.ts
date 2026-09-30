@@ -120,6 +120,10 @@ export const leadService = {
     db.list<LeadList>('lead_lists', { filters: { workspace_id: workspaceId }, orderBy: { column: 'created_at', ascending: false } }),
   createList: (values: Partial<LeadList>) => db.insert<LeadList>('lead_lists', values),
   removeList: (id: string) => db.remove('lead_lists', id),
+  members: (listId: string) =>
+    db.list<{ lead_id: string }>('lead_list_members', { columns: 'lead_id', filters: { list_id: listId } }),
+  addMembers: (listId: string, leadIds: string[]) =>
+    db.insertMany('lead_list_members', leadIds.map((id) => ({ list_id: listId, lead_id: id }))),
 };
 
 export const campaignService = {
