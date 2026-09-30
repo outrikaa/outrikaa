@@ -20,7 +20,7 @@ export function PageHero({
   return (
     <section className="relative pt-16 sm:pt-20 pb-12 overflow-hidden">
       <div className="absolute inset-0 grid-bg opacity-60" />
-      <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-96 w-96 rounded-full bg-primary-600/20 blur-[130px]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
         <FadeIn>
           <Eyebrow icon={<span className="h-1 w-1 rounded-full bg-current" />}>{eyebrow}</Eyebrow>

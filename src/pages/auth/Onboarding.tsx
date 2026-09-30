@@ -63,7 +63,6 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden">
-      <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[420px] w-[420px] rounded-full bg-primary-600/20 blur-[130px]" />
       <header className="relative border-b border-white/8">
         <div className="mx-auto max-w-3xl px-6 h-16 flex items-center justify-between">
           <Logo to="/" size="sm" />

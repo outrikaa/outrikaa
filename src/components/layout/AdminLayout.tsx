@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
   Shield, LayoutDashboard, Users, Megaphone, Mail, CreditCard, FileText,
-  Settings, ScrollText, LifeBuoy, Flag, Plug, BarChart3, MessageSquare, LogOut, Sparkles,
+  Settings, ScrollText, LifeBuoy, Flag, Plug, BarChart3, MessageSquare, LogOut, Sparkles, Menu,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/context/AuthContext';
@@ -102,7 +102,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             className="lg:hidden h-9 w-9 grid place-items-center rounded-lg text-slate-400 hover:bg-white/8"
             aria-label="Open menu"
           >
-            ☰
+            <Menu className="h-5 w-5" />
           </button>
           <div>
             <h1 className="text-sm font-semibold text-white">Admin Console</h1>

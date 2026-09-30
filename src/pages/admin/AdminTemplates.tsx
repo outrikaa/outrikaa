@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, RefreshCw, Eye, FileText } from 'lucide-react';
+import { Search, RefreshCw, Eye, FileText, Star } from 'lucide-react';
 import { PageHeader, StatCard } from '@/components/PageHeader';
 import {
   Card, CardContent, Button, Input, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
@@ -111,7 +111,11 @@ export default function AdminTemplates() {
                     <TableCell>
                       <p className="text-[13px] text-white flex items-center gap-1.5">
                         {t.name}
-                        {t.is_favorite && <span className="text-warning-400" title="Favourite">★</span>}
+                        {t.is_favorite && (
+                          <span title="Favourite">
+                            <Star className="h-3.5 w-3.5 text-warning-400 fill-warning-400" />
+                          </span>
+                        )}
                       </p>
                     </TableCell>
                     <TableCell className="text-[13px] max-w-[260px] truncate">{t.subject}</TableCell>

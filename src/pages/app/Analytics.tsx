@@ -9,7 +9,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 
-const COLORS = ['#8B5CF6', '#22D3EE', '#22C55E', '#F59E0B', '#EF4444'];
+const COLORS = ['#3B82F6', '#38BDF8', '#10B981', '#F59E0B', '#EF4444'];
 
 export default function Analytics() {
   const { workspace } = useAuth();
@@ -55,10 +55,10 @@ export default function Analytics() {
 
   const funnel = summary
     ? [
-        { name: 'Sent', value: summary.emailsSent, color: '#8B5CF6' },
-        { name: 'Delivered', value: summary.delivered, color: '#6366F1' },
-        { name: 'Opened', value: summary.opened, color: '#22D3EE' },
-        { name: 'Clicked', value: summary.clicked, color: '#22C55E' },
+        { name: 'Sent', value: summary.emailsSent, color: '#3B82F6' },
+        { name: 'Delivered', value: summary.delivered, color: '#60A5FA' },
+        { name: 'Opened', value: summary.opened, color: '#38BDF8' },
+        { name: 'Clicked', value: summary.clicked, color: '#10B981' },
         { name: 'Replied', value: summary.replied, color: '#F59E0B' },
       ]
     : [];
@@ -128,26 +128,26 @@ export default function Analytics() {
                 <AreaChart data={series} margin={{ top: 4, right: 8, left: -22, bottom: 0 }}>
                   <defs>
                     <linearGradient id="a1" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.45} />
-                      <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="a2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#22D3EE" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#38BDF8" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="#38BDF8" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="a3" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22C55E" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#22C55E" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis dataKey="date" stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis stroke="#475569" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: '#0A0A0F', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, fontSize: 12, color: '#fff' }} />
+                  <Tooltip contentStyle={{ background: '#0B0D11', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, fontSize: 12, color: '#fff' }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" dataKey="sent" stroke="#8B5CF6" strokeWidth={2} fill="url(#a1)" name="Sent" />
-                  <Area type="monotone" dataKey="opened" stroke="#22D3EE" strokeWidth={2} fill="url(#a2)" name="Opened" />
-                  <Area type="monotone" dataKey="replied" stroke="#22C55E" strokeWidth={2} fill="url(#a3)" name="Replied" />
+                  <Area type="monotone" dataKey="sent" stroke="#3B82F6" strokeWidth={2} fill="url(#a1)" name="Sent" />
+                  <Area type="monotone" dataKey="opened" stroke="#38BDF8" strokeWidth={2} fill="url(#a2)" name="Opened" />
+                  <Area type="monotone" dataKey="replied" stroke="#10B981" strokeWidth={2} fill="url(#a3)" name="Replied" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -168,7 +168,7 @@ export default function Analytics() {
                         <Cell key={entry.name} fill={COLORS[i % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ background: '#0A0A0F', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, fontSize: 12, color: '#fff' }} />
+                    <Tooltip contentStyle={{ background: '#0B0D11', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, fontSize: 12, color: '#fff' }} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -193,10 +193,10 @@ export default function Analytics() {
                   <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis dataKey="name" stroke="#475569" fontSize={11} tickLine={false} axisLine={false} interval={0} />
                   <YAxis stroke="#475569" fontSize={11} tickLine={false} axisLine={false} unit="%" />
-                  <Tooltip contentStyle={{ background: '#0A0A0F', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, fontSize: 12, color: '#fff' }} />
+                  <Tooltip contentStyle={{ background: '#0B0D11', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, fontSize: 12, color: '#fff' }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="open" fill="#8B5CF6" radius={[6, 6, 0, 0]} name="Open %" />
-                  <Bar dataKey="reply" fill="#22D3EE" radius={[6, 6, 0, 0]} name="Reply %" />
+                  <Bar dataKey="open" fill="#3B82F6" radius={[6, 6, 0, 0]} name="Open %" />
+                  <Bar dataKey="reply" fill="#38BDF8" radius={[6, 6, 0, 0]} name="Reply %" />
                 </BarChart>
               </ResponsiveContainer>
             </div>

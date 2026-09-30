@@ -179,7 +179,7 @@ export default function Leads() {
       const l = await leadService.createList({
         workspace_id: workspace.id,
         name: newListName.trim(),
-        color: '#8B5CF6',
+        color: '#3B82F6',
       });
       setLists((prev) => [l, ...prev]);
       setNewListName('');

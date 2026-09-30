@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, RefreshCw, Plus, Pencil, Trash2, MessageSquare } from 'lucide-react';
+import { Search, RefreshCw, Plus, Pencil, Trash2, MessageSquare, Star } from 'lucide-react';
 import { PageHeader, StatCard } from '@/components/PageHeader';
 import {
   Card, CardContent, Button, Input, Textarea, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
@@ -176,7 +176,13 @@ export default function AdminTestimonials() {
                     <TableCell className="text-[13px] max-w-[340px]">
                       <span className="line-clamp-2">{t.quote}</span>
                     </TableCell>
-                    <TableCell className="text-[13px] text-warning-300">{'★'.repeat(t.rating ?? 5)}</TableCell>
+                    <TableCell className="text-[13px]">
+                      <span className="inline-flex gap-0.5">
+                        {Array.from({ length: t.rating ?? 5 }).map((_, i) => (
+                          <Star key={i} className="h-3.5 w-3.5 text-warning-400 fill-warning-400" />
+                        ))}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <button onClick={async () => {
                         try {

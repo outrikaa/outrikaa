@@ -3,12 +3,11 @@ import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Megaphone, Workflow, Mail, FileText, Sparkles, BarChart3,
   Inbox as InboxIcon, Plug, CreditCard, Settings, LifeBuoy, Search, Bell, Menu, X,
-  ChevronsLeft, Sun, Moon, Command, LogOut, CheckCheck, Shield,
+  ChevronsLeft, Command, LogOut, CheckCheck, Shield,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { CommandMenu, type CommandItem, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
 import { notificationService } from '@/services/db';
 import type { Notification } from '@/types';
 import { timeAgo, getInitials, cn } from '@/lib/utils';
@@ -56,7 +55,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const { profile, workspace, signOut, isAdmin } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -98,9 +96,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       { id: 'import', label: 'Import leads (CSV)', group: 'Actions', icon: <Users className="h-4 w-4" />, run: () => navigate('/app/leads?import=1') },
       { id: 'write', label: 'Write an email with AI', group: 'Actions', icon: <Sparkles className="h-4 w-4" />, run: () => navigate('/app/ai-writer') },
       ...(isAdmin ? [{ id: 'admin', label: 'Admin panel', group: 'Actions', icon: <Shield className="h-4 w-4" />, run: () => navigate('/admin') }] : []),
-      { id: 'theme', label: 'Toggle theme', group: 'Preferences', run: toggleTheme },
     ],
-    [navigate, isAdmin, toggleTheme]
+    [navigate, isAdmin]
   );
 
   const sidebarContent = (onNavigate?: () => void) => (
@@ -229,14 +226,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </button>
 
           <div className="ml-auto flex items-center gap-1.5">
-            <button
-              onClick={toggleTheme}
-              className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:text-white hover:bg-white/8 transition-colors"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
-
             <Dropdown
               align="right"
               trigger={

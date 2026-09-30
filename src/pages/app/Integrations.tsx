@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plug, Slack, Webhook, RefreshCw } from 'lucide-react';
+import { Plug, Slack, Webhook, RefreshCw, Mail, Building2, Inbox, MonitorSmartphone, MessageSquare, Database } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, Button, Badge, Skeleton, useToast, ConfirmDialog } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
@@ -8,13 +8,13 @@ import type { Integration } from '@/types';
 import { timeAgo, cn } from '@/lib/utils';
 
 const catalog = [
-  { provider: 'gmail', name: 'Gmail', desc: 'Send and sync from personal Google accounts.', icon: '✉️', available: true },
-  { provider: 'google_workspace', name: 'Google Workspace', desc: 'Organisational sending with admin consent.', icon: '🏢', available: true },
-  { provider: 'outlook', name: 'Outlook', desc: 'Microsoft personal accounts via OAuth.', icon: '📨', available: true },
-  { provider: 'microsoft365', name: 'Microsoft 365', desc: 'Tenant-wide mailboxes with Graph API.', icon: '🪟', available: true },
-  { provider: 'slack', name: 'Slack', desc: 'Push reply and campaign alerts to channels.', icon: '💬', available: false },
-  { provider: 'crm', name: 'CRM sync', desc: 'Two-way sync with your CRM of record.', icon: '🗄️', available: false },
-  { provider: 'webhooks', name: 'Webhooks', desc: 'Stream events to any HTTP endpoint.', icon: '🔗', available: false },
+  { provider: 'gmail', name: 'Gmail', desc: 'Send and sync from personal Google accounts.', icon: Mail, available: true },
+  { provider: 'google_workspace', name: 'Google Workspace', desc: 'Organisational sending with admin consent.', icon: Building2, available: true },
+  { provider: 'outlook', name: 'Outlook', desc: 'Microsoft personal accounts via OAuth.', icon: Inbox, available: true },
+  { provider: 'microsoft365', name: 'Microsoft 365', desc: 'Tenant-wide mailboxes with Graph API.', icon: MonitorSmartphone, available: true },
+  { provider: 'slack', name: 'Slack', desc: 'Push reply and campaign alerts to channels.', icon: MessageSquare, available: false },
+  { provider: 'crm', name: 'CRM sync', desc: 'Two-way sync with your CRM of record.', icon: Database, available: false },
+  { provider: 'webhooks', name: 'Webhooks', desc: 'Stream events to any HTTP endpoint.', icon: Webhook, available: false },
 ];
 
 export default function Integrations() {
@@ -120,8 +120,8 @@ export default function Integrations() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="h-11 w-11 grid place-items-center rounded-xl bg-white/6 border border-white/10 text-xl">
-                      {item.icon}
+                    <div className="h-11 w-11 grid place-items-center rounded-xl bg-white/6 border border-white/10 text-primary-300">
+                      <item.icon className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-white">{item.name}</p>

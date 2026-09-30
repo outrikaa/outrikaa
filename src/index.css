@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 :root {
   color-scheme: dark;
@@ -19,30 +19,9 @@ html {
 
 body {
   @apply bg-base-bg text-slate-100 font-sans antialiased;
-  background-color: #050507;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 92, 246, 0.15), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(34, 211, 238, 0.08), transparent);
+  background-color: #08090C;
   background-attachment: fixed;
 }
-
-/* Light mode overrides */
-.light body {
-  background-color: #f8fafc;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 92, 246, 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(34, 211, 238, 0.05), transparent);
-}
-
-.light {
-  color-scheme: light;
-}
-
-.light .text-slate-100 { @apply text-slate-800; }
-.light .text-slate-200 { @apply text-slate-700; }
-.light .text-slate-300 { @apply text-slate-600; }
-.light .text-slate-400 { @apply text-slate-500; }
-.light .text-muted { @apply text-slate-500; }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
@@ -53,33 +32,36 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.2);
+  background: rgba(148, 163, 184, 0.18);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.4);
+  background: rgba(148, 163, 184, 0.32);
 }
 
-/* Glassmorphism utilities */
+/* Surfaces */
 @layer components {
   .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    @apply bg-base-bg-secondary/90 backdrop-blur-xl border border-white/10;
   }
   .glass-strong {
-    @apply bg-white/8 backdrop-blur-2xl border border-white/10;
+    @apply bg-base-bg/90 backdrop-blur-xl border border-white/10;
   }
   .glass-card {
-    @apply bg-base-card/80 backdrop-blur-xl border border-white/10 rounded-2xl;
+    @apply bg-base-card/90 backdrop-blur-xl border border-white/10 rounded-2xl;
   }
   .glow-border {
     @apply border border-primary-500/30 shadow-glow-sm;
   }
   .gradient-text {
-    @apply bg-gradient-brand bg-clip-text text-transparent;
+    background: linear-gradient(120deg, #93c5fd 0%, #60a5fa 45%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
   .grid-bg {
-    background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
     background-size: 40px 40px;
   }
   .grid-bg-light {
@@ -103,7 +85,7 @@ body {
 
 /* Focus visible */
 *:focus-visible {
-  outline: 2px solid rgba(139, 92, 246, 0.6);
+  outline: 2px solid rgba(59, 130, 246, 0.65);
   outline-offset: 2px;
 }
 
@@ -121,6 +103,6 @@ body {
 
 /* Selection */
 ::selection {
-  background: rgba(139, 92, 246, 0.3);
+  background: rgba(37, 99, 235, 0.4);
   color: #fff;
 }

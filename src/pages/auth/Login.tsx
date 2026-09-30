@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Mail, Lock, Chrome, ArrowRight } from 'lucide-react';
+import { Mail, Lock, Chrome, ArrowRight, Check } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { Button, Input, useToast } from '@/components/ui';
 import { authService } from '@/services/auth';
@@ -44,8 +44,6 @@ export default function Login() {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between p-10 bg-gradient-dark grid-bg relative overflow-hidden">
-        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary-600/25 blur-[110px]" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-accent-500/15 blur-[100px]" />
         <Logo to="/" />
         <div className="relative">
           <h1 className="text-3xl font-bold text-white leading-tight max-w-sm">
@@ -54,10 +52,10 @@ export default function Login() {
           <p className="mt-4 text-slate-400 max-w-sm text-sm leading-relaxed">
             Manage leads, write emails with AI, automate sequences and track every reply — from one workspace.
           </p>
-          <div className="mt-8 flex items-center gap-6 text-xs text-slate-500">
-            <span>✦ 14-day free trial</span>
-            <span>✦ No credit card</span>
-            <span>✦ Cancel anytime</span>
+          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success-400" /> 14-day free trial</span>
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success-400" /> No credit card</span>
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success-400" /> Cancel anytime</span>
           </div>
         </div>
         <p className="text-xs text-slate-600">© {new Date().getFullYear()} OUTRIKAA</p>

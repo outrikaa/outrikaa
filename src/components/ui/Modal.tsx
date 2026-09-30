@@ -116,7 +116,7 @@ export function ConfirmDialog({
               'h-9 px-4 text-sm rounded-xl font-medium text-white transition-all disabled:opacity-50',
               tone === 'danger'
                 ? 'bg-error-600 hover:bg-error-500'
-                : 'bg-gradient-brand hover:opacity-90'
+                : 'bg-primary-600 hover:bg-primary-500'
             )}
           >
             {loading ? 'Working…' : confirmLabel}

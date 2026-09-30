@@ -68,8 +68,8 @@ export function CTA({ title, sub, primary = 'Start free', primaryTo = '/signup',
   secondaryTo?: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-brand-soft p-8 sm:p-14 text-center">
-      <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-64 w-64 rounded-full bg-primary-600/30 blur-[100px]" />
+    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-base-bg-secondary p-8 sm:p-14 text-center">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-500/50 to-transparent" />
       <div className="relative">
         <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{title}</h2>
         {sub && <p className="mt-4 text-slate-400 max-w-xl mx-auto">{sub}</p>}

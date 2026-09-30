@@ -1,19 +1,19 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Clock } from 'lucide-react';
+import { ArrowRight, Clock, Mail, Building2, Inbox, MonitorSmartphone, MessageSquare, Database, Webhook, Server, Zap } from 'lucide-react';
 import { Button, Badge } from '@/components/ui';
 import { PageHero, FaqSection, CTA, Section, SectionTitle, FadeIn } from './shared';
 
 const items = [
-  { icon: '✉️', name: 'Gmail', desc: 'Send and sync from personal Google accounts via OAuth.', status: 'available' },
-  { icon: '🏢', name: 'Google Workspace', desc: 'Organisational sending with admin consent and shared inboxes.', status: 'available' },
-  { icon: '📨', name: 'Outlook', desc: 'Microsoft personal accounts through OAuth consent flow.', status: 'available' },
-  { icon: '🪟', name: 'Microsoft 365', desc: 'Tenant-wide mailboxes using the Microsoft Graph API.', status: 'available' },
-  { icon: '💬', name: 'Slack', desc: 'Push reply, bounce and campaign alerts into any channel.', status: 'soon' },
-  { icon: '🗄️', name: 'CRM sync', desc: 'Two-way contact and activity sync with your CRM of record.', status: 'soon' },
-  { icon: '🔗', name: 'Webhooks', desc: 'Stream sent, opened, clicked and replied events to your endpoint.', status: 'soon' },
-  { icon: '🌐', name: 'Custom SMTP', desc: 'Any provider that speaks SMTP with app-specific credentials.', status: 'available' },
-  { icon: '📊', name: 'Zapier', desc: 'Trigger thousands of apps from campaign and reply events.', status: 'soon' },
+  { icon: Mail, name: 'Gmail', desc: 'Send and sync from personal Google accounts via OAuth.', status: 'available' },
+  { icon: Building2, name: 'Google Workspace', desc: 'Organisational sending with admin consent and shared inboxes.', status: 'available' },
+  { icon: Inbox, name: 'Outlook', desc: 'Microsoft personal accounts through OAuth consent flow.', status: 'available' },
+  { icon: MonitorSmartphone, name: 'Microsoft 365', desc: 'Tenant-wide mailboxes using the Microsoft Graph API.', status: 'available' },
+  { icon: MessageSquare, name: 'Slack', desc: 'Push reply, bounce and campaign alerts into any channel.', status: 'soon' },
+  { icon: Database, name: 'CRM sync', desc: 'Two-way contact and activity sync with your CRM of record.', status: 'soon' },
+  { icon: Webhook, name: 'Webhooks', desc: 'Stream sent, opened, clicked and replied events to your endpoint.', status: 'soon' },
+  { icon: Server, name: 'Custom SMTP', desc: 'Any provider that speaks SMTP with app-specific credentials.', status: 'available' },
+  { icon: Zap, name: 'Zapier', desc: 'Trigger thousands of apps from campaign and reply events.', status: 'soon' },
 ];
 
 export default function Integrations() {
@@ -35,8 +35,8 @@ export default function Integrations() {
             <FadeIn key={it.name} delay={i * 50}>
               <div className="h-full rounded-2xl border border-white/10 bg-base-card/60 p-6 hover:border-white/20 transition-colors flex flex-col">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="h-11 w-11 grid place-items-center rounded-xl bg-white/6 border border-white/10 text-xl">
-                    {it.icon}
+                  <span className="h-11 w-11 grid place-items-center rounded-xl bg-white/6 border border-white/10 text-primary-300">
+                    <it.icon className="h-5 w-5" />
                   </span>
                   <Badge tone={it.status === 'available' ? 'success' : 'muted'}>
                     {it.status === 'available' ? 'available' : 'coming soon'}

@@ -1,7 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
-import { ThemeProvider } from '@/context/ThemeContext';
 import { ToastProvider, PageLoader } from '@/components/ui';
 import { PublicLayout } from '@/components/layout/PublicLayout';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -101,9 +100,8 @@ function RedirectIfAuthed({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
           <BrowserRouter>
             <Suspense fallback={<Loading />}>
               <Routes>
@@ -250,6 +248,5 @@ export default function App() {
           </BrowserRouter>
         </AuthProvider>
       </ToastProvider>
-    </ThemeProvider>
   );
 }

@@ -39,7 +39,6 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-96 w-96 rounded-full bg-primary-600/20 blur-[110px]" />
       <div className="relative w-full max-w-sm">
         <div className="flex justify-center mb-8">
           <Logo to="/" />

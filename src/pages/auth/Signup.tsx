@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Chrome, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, Chrome, ArrowRight, Check } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { Button, Input, useToast } from '@/components/ui';
 import { authService } from '@/services/auth';
@@ -90,8 +90,6 @@ export default function Signup() {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between p-10 bg-gradient-dark grid-bg relative overflow-hidden">
-        <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-primary-600/25 blur-[110px]" />
-        <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-accent-500/15 blur-[100px]" />
         <Logo to="/" />
         <div className="relative">
           <h1 className="text-3xl font-bold text-white leading-tight max-w-sm">
@@ -100,7 +98,7 @@ export default function Signup() {
           <ul className="mt-6 space-y-3 text-sm text-slate-400">
             {['Import leads from CSV in seconds', 'AI writes your first-touch emails', 'Visual sequences with delays & conditions', 'Real-time open, reply and bounce tracking'].map((f) => (
               <li key={f} className="flex items-start gap-2.5">
-                <span className="mt-1 h-4 w-4 grid place-items-center rounded-full bg-primary-500/20 text-primary-300 text-[10px]">✓</span>
+                <span className="mt-1 h-4 w-4 grid place-items-center rounded-full bg-primary-500/15 text-primary-300"><Check className="h-2.5 w-2.5" /></span>
                 {f}
               </li>
             ))}

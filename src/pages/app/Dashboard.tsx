@@ -152,12 +152,12 @@ export default function Dashboard() {
                 <AreaChart data={series} margin={{ top: 4, right: 8, left: -22, bottom: 0 }}>
                   <defs>
                     <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.5} />
-                      <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="replyGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.45} />
-                      <stop offset="100%" stopColor="#22D3EE" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#38BDF8" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#38BDF8" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -165,15 +165,15 @@ export default function Dashboard() {
                   <YAxis stroke="#475569" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{
-                      background: '#0A0A0F',
+                      background: '#0B0D11',
                       border: '1px solid rgba(255,255,255,0.12)',
                       borderRadius: 12,
                       fontSize: 12,
                       color: '#fff',
                     }}
                   />
-                  <Area type="monotone" dataKey="sent" stroke="#8B5CF6" strokeWidth={2} fill="url(#sentGrad)" name="Sent" />
-                  <Area type="monotone" dataKey="replied" stroke="#22D3EE" strokeWidth={2} fill="url(#replyGrad)" name="Replied" />
+                  <Area type="monotone" dataKey="sent" stroke="#3B82F6" strokeWidth={2} fill="url(#sentGrad)" name="Sent" />
+                  <Area type="monotone" dataKey="replied" stroke="#38BDF8" strokeWidth={2} fill="url(#replyGrad)" name="Replied" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

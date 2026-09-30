@@ -1,9 +1,8 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown, Sun, Moon } from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui';
-import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +41,6 @@ export function Navbar() {
   const [open, setOpen] = useState(false);
   const [mega, setMega] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
-  const { theme, toggleTheme } = useTheme();
   const { session } = useAuth();
   const location = useLocation();
 
@@ -62,7 +60,7 @@ export function Navbar() {
     <header
       className={cn(
         'fixed top-0 inset-x-0 z-50 transition-all duration-300',
-        scrolled ? 'glass-strong shadow-lg' : 'bg-transparent'
+        scrolled ? 'bg-base-bg/90 backdrop-blur-xl border-b border-white/10 shadow-sm' : 'bg-transparent'
       )}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -119,13 +117,6 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={toggleTheme}
-              className="hidden sm:grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:text-white hover:bg-white/8 transition-colors"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
             {session ? (
               <Link to="/app" className="hidden sm:block">
                 <Button size="sm">Go to dashboard</Button>

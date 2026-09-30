@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, Sparkles, Users, Mail, Reply, CalendarCheck, TrendingUp,
+  ArrowRight, Sparkles, Users, Mail, Reply, CalendarCheck,
   MousePointer, Wand2, Workflow, BarChart3, Shield, Check, Inbox, Send,
+  FileSpreadsheet, PenLine, Shuffle, TrendingDown,
 } from 'lucide-react';
 import { Button, Badge, Tabs } from '@/components/ui';
 import { Section, Eyebrow, SectionTitle, FadeIn, CTA, CheckList, Logos, Stars, FeatureCard } from './marketing';
 import { cn, formatNumber } from '@/lib/utils';
 
 const floating = [
-  { icon: Users, label: 'New lead added', sub: 'jane@acme.com', tone: 'text-primary-300 bg-primary-500/15 border-primary-500/30', pos: 'top-[8%] left-[2%] animate-float', delay: '0s' },
-  { icon: Sparkles, label: 'AI email generated', sub: 'Subject: quick question…', tone: 'text-accent-300 bg-accent-500/15 border-accent-500/30', pos: 'top-[4%] right-[4%] animate-float-delayed', delay: '1.2s' },
-  { icon: Send, label: 'Campaign sending', sub: '48 / 120 today', tone: 'text-primary-300 bg-primary-500/15 border-primary-500/30', pos: 'bottom-[26%] left-[-2%] animate-float-slow', delay: '.6s' },
-  { icon: Reply, label: 'Reply received', sub: '"Sounds interesting!"', tone: 'text-success-300 bg-success-500/15 border-success-500/30', pos: 'bottom-[8%] right-[2%] animate-float', delay: '2s' },
-  { icon: TrendingUp, label: 'Open rate', sub: '62.4% this week', tone: 'text-warning-300 bg-warning-500/15 border-warning-500/30', pos: 'top-[46%] right-[-3%] animate-float-slow', delay: '1.6s' },
-  { icon: CalendarCheck, label: 'Meeting booked', sub: 'Thu 3:30 PM', tone: 'text-success-300 bg-success-500/15 border-success-500/30', pos: 'bottom-[42%] left-[-4%] animate-float-delayed', delay: '.3s' },
+  { icon: Users, label: 'New lead added', sub: 'jane@acme.com', tone: 'text-slate-300 bg-white/6 border-white/12', pos: 'top-[8%] left-[2%] animate-float', delay: '0s' },
+  { icon: Sparkles, label: 'AI email generated', sub: 'Subject: quick question…', tone: 'text-primary-300 bg-primary-500/10 border-primary-500/25', pos: 'top-[4%] right-[4%] animate-float-delayed', delay: '1.2s' },
+  { icon: Reply, label: 'Reply received', sub: '"Sounds interesting!"', tone: 'text-success-300 bg-success-500/10 border-success-500/25', pos: 'bottom-[8%] right-[2%] animate-float', delay: '2s' },
+  { icon: CalendarCheck, label: 'Meeting booked', sub: 'Thu 3:30 PM', tone: 'text-slate-300 bg-white/6 border-white/12', pos: 'bottom-[42%] left-[-4%] animate-float-slow', delay: '.3s' },
 ];
 
 const chartData = [28, 42, 36, 58, 47, 72, 65, 88, 74, 96, 85, 112];
@@ -31,9 +30,7 @@ export default function Home() {
       {/* HERO */}
       <section className="relative pt-20 sm:pt-28 pb-16">
         <div className="absolute inset-0 grid-bg opacity-70" />
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-primary-600/25 blur-[140px]" />
-        <div className="absolute top-40 -left-32 h-72 w-72 rounded-full bg-accent-500/15 blur-[110px]" />
-        <div className="absolute top-60 -right-24 h-72 w-72 rounded-full bg-secondary-500/15 blur-[110px]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-10 items-center">
@@ -182,14 +179,16 @@ export default function Home() {
         </FadeIn>
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { icon: '🗂️', title: 'Leads live in spreadsheets', desc: 'Lists get stale, duplicates creep in, and nobody knows which version is current.' },
-            { icon: '✍️', title: 'Writing every email by hand', desc: 'First touches take 10 minutes each, so volume collapses after week one.' },
-            { icon: '🔀', title: 'Sequences spread across tools', desc: 'Mail merge here, a CRM there, reminders in someone\'s head.' },
-            { icon: '📉', title: 'No idea what\'s working', desc: 'Opens, replies and bounces scattered across five dashboards.' },
+            { icon: FileSpreadsheet, title: 'Leads live in spreadsheets', desc: 'Lists get stale, duplicates creep in, and nobody knows which version is current.' },
+            { icon: PenLine, title: 'Writing every email by hand', desc: 'First touches take 10 minutes each, so volume collapses after week one.' },
+            { icon: Shuffle, title: 'Sequences spread across tools', desc: 'Mail merge here, a CRM there, reminders in someone\'s head.' },
+            { icon: TrendingDown, title: 'No idea what\'s working', desc: 'Opens, replies and bounces scattered across five dashboards.' },
           ].map((p, i) => (
             <FadeIn key={p.title} delay={i * 70}>
               <div className="h-full rounded-2xl border border-white/10 bg-base-card/60 p-6 hover:border-error-500/30 transition-colors">
-                <span className="text-2xl">{p.icon}</span>
+                <span className="h-10 w-10 grid place-items-center rounded-lg border border-error-500/25 bg-error-500/10 text-error-300">
+                  <p.icon className="h-5 w-5" />
+                </span>
                 <h3 className="mt-4 text-base font-semibold text-white">{p.title}</h3>
                 <p className="mt-2 text-sm text-slate-500 leading-relaxed">{p.desc}</p>
               </div>
