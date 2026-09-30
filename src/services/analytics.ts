@@ -36,12 +36,12 @@ export const analyticsService = {
         supabase.from('leads').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId),
         supabase.from('campaigns').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('status', ['running', 'scheduled']),
         supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('direction', 'outbound').gte('sent_at', since),
-        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('status', ['delivered', 'opened', 'clicked', 'replied']),
-        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).not('opened_at', 'is', null),
-        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).not('clicked_at', 'is', null),
-        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).not('replied_at', 'is', null),
-        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('reply_classification', 'positive'),
-        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).not('bounced_at', 'is', null),
+        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('direction', 'outbound').in('status', ['delivered', 'opened', 'clicked', 'replied']),
+        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('direction', 'outbound').not('opened_at', 'is', null),
+        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('direction', 'outbound').not('clicked_at', 'is', null),
+        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('direction', 'outbound').not('replied_at', 'is', null),
+        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('direction', 'inbound').eq('reply_classification', 'positive'),
+        supabase.from('email_messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('direction', 'outbound').not('bounced_at', 'is', null),
         supabase.from('leads').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('status', 'unsubscribed'),
         supabase.from('leads').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('status', 'meeting'),
       ]);
@@ -115,6 +115,7 @@ export const analyticsService = {
       .from('email_messages')
       .select('campaign_id, status, opened_at, replied_at, bounced_at')
       .eq('workspace_id', workspaceId)
+      .eq('direction', 'outbound')
       .in('campaign_id', campaigns.map((c) => c.id));
 
     return campaigns.map((c) => {
@@ -147,7 +148,8 @@ export const analyticsService = {
     const { data: messages } = await supabase
       .from('email_messages')
       .select('mailbox_id, opened_at, replied_at, bounced_at')
-      .eq('workspace_id', workspaceId);
+      .eq('workspace_id', workspaceId)
+      .eq('direction', 'outbound');
 
     return mailboxes.map((mb) => {
       const rows = (messages ?? []).filter((m) => m.mailbox_id === mb.id);
