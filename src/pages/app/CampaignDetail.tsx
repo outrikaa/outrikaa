@@ -6,14 +6,16 @@ import {
   Card, CardHeader, CardTitle, CardContent, Button, Badge, Input, Select, Table,
   TableHeader, TableBody, TableRow, TableHead, TableCell, Skeleton, useToast, ConfirmDialog, EmptyState, ErrorState,
 } from '@/components/ui';
-import { campaignService } from '@/services/db';
+import { campaignService, mailboxService } from '@/services/db';
 import type { Campaign, CampaignLead, Lead } from '@/types';
 import { formatDateTime, formatDate, cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 
 export default function CampaignDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { workspace } = useAuth();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<(CampaignLead & { lead?: Lead })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,13 +45,13 @@ export default function CampaignDetail() {
     })();
   }, [id, toast]);
 
-  const update = async (values: Partial<Campaign>) => {
+  const update = async (values: Partial<Campaign>, opts: { silent?: boolean } = {}) => {
     if (!id) return;
     setSaving(true);
     try {
       const updated = await campaignService.update(id, values);
       setCampaign(updated);
-      toast.success('Campaign updated');
+      if (!opts.silent) toast.success('Campaign updated');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Update failed');
     } finally {
@@ -59,11 +61,40 @@ export default function CampaignDetail() {
 
   const toggleStatus = async () => {
     if (!campaign) return;
-    const next: Campaign['status'] = campaign.status === 'running' ? 'paused' : 'running';
-    await update({
-      status: next,
-      ...(next === 'running' ? { launched_at: campaign.launched_at ?? new Date().toISOString() } : {}),
-    });
+
+    if (campaign.status === 'running') {
+      await update({ status: 'paused', paused_at: new Date().toISOString() }, { silent: true });
+      toast.success('Campaign paused');
+      return;
+    }
+    if (campaign.status === 'completed' || campaign.status === 'archived') return;
+
+    if (!campaign.mailbox_id) return toast.error('Choose a sending mailbox first');
+    if (!campaign.template_id && !campaign.sequence_id) {
+      return toast.error('Add an email template or sequence first');
+    }
+    if (workspace) {
+      try {
+        const boxes = await mailboxService.list(workspace.id);
+        const box = boxes.find((b) => b.id === campaign.mailbox_id);
+        if (!box || box.status !== 'connected') {
+          return toast.error('The sending mailbox is not connected — reconnect it first');
+        }
+      } catch {
+        return toast.error('Could not verify the mailbox — try again');
+      }
+    }
+
+    await update(
+      {
+        status: 'running',
+        launched_at: campaign.launched_at ?? new Date().toISOString(),
+        start_date: campaign.start_date ?? new Date().toISOString(),
+        paused_at: null,
+      },
+      { silent: true }
+    );
+    toast.success('Campaign launched — sending starts within a minute');
   };
 
   if (loading) {
@@ -94,8 +125,19 @@ export default function CampaignDetail() {
             <Badge tone={campaign.status === 'running' ? 'success' : campaign.status === 'paused' ? 'warning' : 'default'} dot={campaign.status === 'running'}>
               {campaign.status}
             </Badge>
-            <Button variant="outline" onClick={toggleStatus} leftIcon={campaign.status === 'running' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}>
-              {campaign.status === 'running' ? 'Pause' : 'Launch'}
+            <Button
+              variant="outline"
+              onClick={toggleStatus}
+              disabled={campaign.status === 'completed' || campaign.status === 'archived'}
+              leftIcon={campaign.status === 'running' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            >
+              {campaign.status === 'running'
+                ? 'Pause'
+                : campaign.status === 'paused'
+                  ? 'Resume'
+                  : campaign.status === 'scheduled'
+                    ? 'Start now'
+                    : 'Launch'}
             </Button>
             <Button variant="danger" onClick={() => setConfirmDelete(true)} leftIcon={<Trash2 className="h-4 w-4" />}>
               Delete
@@ -162,6 +204,7 @@ export default function CampaignDetail() {
             <CardContent className="space-y-3 text-sm">
               {[
                 ['Created', formatDate(campaign.created_at)],
+                ['Scheduled', campaign.start_date ? formatDateTime(campaign.start_date) : '—'],
                 ['Launched', campaign.launched_at ? formatDateTime(campaign.launched_at) : 'Not launched'],
                 ['Paused', campaign.paused_at ? formatDateTime(campaign.paused_at) : '—'],
                 ['Completed', campaign.completed_at ? formatDateTime(campaign.completed_at) : '—'],

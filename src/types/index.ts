@@ -129,6 +129,7 @@ export interface Campaign {
   lead_list_id: string | null;
   mailbox_id: string | null;
   sequence_id: string | null;
+  template_id: string | null;
   status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'archived';
   timezone: string;
   daily_limit: number;

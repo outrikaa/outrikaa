@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Sparkles } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, Button, Input, Select, Textarea, useToast, Skeleton } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { campaignService, leadService, mailboxService, sequenceService } from '@/services/db';
+import { campaignService, leadService, mailboxService, sequenceService, templateService } from '@/services/db';
 import type { Campaign } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +19,7 @@ export default function CampaignNew() {
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
   const [mailboxes, setMailboxes] = useState<{ id: string; email_address: string; status: string }[]>([]);
   const [sequences, setSequences] = useState<{ id: string; name: string }[]>([]);
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [form, setForm] = useState({
@@ -27,6 +28,9 @@ export default function CampaignNew() {
     lead_list_id: '',
     mailbox_id: '',
     sequence_id: '',
+    template_id: '',
+    start_mode: 'instant' as 'instant' | 'schedule',
+    start_at: '',
     daily_limit: 50,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     sending_days: ['mon', 'tue', 'wed', 'thu', 'fri'],
@@ -44,14 +48,16 @@ export default function CampaignNew() {
     }
     (async () => {
       try {
-        const [l, m, s] = await Promise.all([
+        const [l, m, s, t] = await Promise.all([
           leadService.lists(workspace.id),
           mailboxService.list(workspace.id),
           sequenceService.list(workspace.id),
+          templateService.list(workspace.id),
         ]);
         setLists(l);
         setMailboxes(m);
         setSequences(s);
+        setTemplates(t);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Could not load options');
       } finally {
@@ -67,18 +73,46 @@ export default function CampaignNew() {
       sending_days: f.sending_days.includes(d) ? f.sending_days.filter((x) => x !== d) : [...f.sending_days, d],
     }));
 
+  const start_atSafe = (v: string) => (v.length === 16 ? `${v}:00` : v);
+
   const submit = async () => {
     if (!workspace) return;
     if (!form.name.trim()) return toast.error('Give the campaign a name');
     if (!form.lead_list_id) return toast.error('Choose a lead list');
+    if (!form.template_id && !form.sequence_id) {
+      return toast.error('Choose an email template or a sequence so there is something to send');
+    }
+    const startMode = form.start_mode;
+    if (startMode === 'schedule') {
+      if (!form.start_at) return toast.error('Pick a start date and time');
+      if (new Date(form.start_at).getTime() <= Date.now()) return toast.error('Start time must be in the future');
+    }
     setSaving(true);
     try {
+      const values = {
+        name: form.name,
+        description: form.description,
+        lead_list_id: form.lead_list_id,
+        mailbox_id: form.mailbox_id || null,
+        daily_limit: form.daily_limit,
+        timezone: form.timezone,
+        sending_days: form.sending_days,
+        sending_start_time: form.sending_start_time,
+        sending_end_time: form.sending_end_time,
+        track_opens: form.track_opens,
+        track_clicks: form.track_clicks,
+        unsubscribe_enabled: form.unsubscribe_enabled,
+        template_id: form.template_id || null,
+        sequence_id: form.sequence_id || null,
+      };
+      const scheduled = startMode === 'schedule';
       const created = await campaignService.create({
         workspace_id: workspace.id,
-        status: 'draft',
-        ...form,
+        status: scheduled ? 'scheduled' : 'draft',
+        start_date: scheduled ? new Date(start_atSafe(form.start_at)).toISOString() : null,
+        ...values,
       } as Partial<Campaign>);
-      toast.success('Campaign created');
+      toast.success(scheduled ? 'Campaign scheduled' : 'Campaign created');
       navigate(`/app/campaigns/${created.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not create campaign');
@@ -170,11 +204,67 @@ export default function CampaignNew() {
                   Build one in the <Link to="/app/sequences" className="text-primary-400">sequence builder</Link> if you haven't.
                 </p>
               </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[13px] font-medium text-slate-300">Email template</label>
+                <Select
+                  value={form.template_id}
+                  onChange={(e) => setForm({ ...form, template_id: e.target.value })}
+                  placeholder="Select a template"
+                  options={templates.map((t) => ({ value: t.id, label: t.name }))}
+                />
+                <p className="text-xs text-slate-500">
+                  Used as the first email when no sequence is chosen. Pick or build one in{' '}
+                  <Link to="/app/templates" className="text-primary-400">Templates</Link>.
+                </p>
+              </div>
+
+              {!form.sequence_id && !form.template_id && (
+                <div className="rounded-xl border border-warning-500/25 bg-warning-500/5 p-4 text-sm text-warning-200">
+                  Choose a sequence or a template — a campaign needs content to send.
+                </div>
+              )}
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-5 animate-fade-in">
+              <div className="space-y-1.5">
+                <label className="block text-[13px] font-medium text-slate-300">When to start</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    ['instant', 'Start on launch', 'Sending begins as soon as you launch the campaign.'],
+                    ['schedule', 'Schedule', 'Held until the date and time below.'],
+                  ] as const).map(([mode, label, desc]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setForm({ ...form, start_mode: mode })}
+                      className={cn(
+                        'rounded-xl border p-3.5 text-left transition-all',
+                        form.start_mode === mode
+                          ? 'bg-primary-500/15 border-primary-500/40'
+                          : 'bg-white/4 border-white/10 hover:bg-white/8'
+                      )}
+                    >
+                      <span className="block text-sm text-white font-medium">{label}</span>
+                      <span className="block text-xs text-slate-500 mt-0.5">{desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {form.start_mode === 'schedule' && (
+                <Input
+                  label="Start at"
+                  type="datetime-local"
+                  min={new Date(Date.now() + 60_000 - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16)}
+                  value={form.start_at}
+                  onChange={(e) => setForm({ ...form, start_at: e.target.value })}
+                  hint={`Times are in your local timezone (${form.timezone} is used for the sending window).`}
+                />
+              )}
+
               <div className="grid sm:grid-cols-2 gap-4">
                 <Input
                   label="Daily send limit"
@@ -256,6 +346,10 @@ export default function CampaignNew() {
                   ['Lead list', lists.find((l) => l.id === form.lead_list_id)?.name ?? '—'],
                   ['Mailbox', mailboxes.find((m) => m.id === form.mailbox_id)?.email_address ?? 'Not connected'],
                   ['Sequence', sequences.find((s) => s.id === form.sequence_id)?.name ?? '—'],
+                  ['Template', templates.find((t) => t.id === form.template_id)?.name ?? '—'],
+                  ['Start', form.start_mode === 'schedule' && form.start_at
+                    ? new Date(start_atSafe(form.start_at)).toLocaleString()
+                    : 'Immediately on launch'],
                   ['Daily limit', `${form.daily_limit} emails / day`],
                   ['Days', form.sending_days.join(', ').toUpperCase() || '—'],
                   ['Window', `${form.sending_start_time} – ${form.sending_end_time} (${form.timezone})`],
@@ -268,8 +362,17 @@ export default function CampaignNew() {
                 ))}
               </div>
               <div className="rounded-xl border border-primary-500/25 bg-primary-500/5 p-4 text-xs text-slate-400 leading-relaxed">
-                The campaign starts in <span className="text-white">Draft</span>. You can launch it from the campaign detail
-                page once the mailbox and sequence are ready.
+                {form.start_mode === 'schedule' ? (
+                  <>
+                    The campaign will be <span className="text-white">Scheduled</span> and switches to
+                    <span className="text-white"> Running</span> automatically at the start time. Launching early is fine too.
+                  </>
+                ) : (
+                  <>
+                    The campaign starts in <span className="text-white">Draft</span>. Launch it from the campaign detail
+                    page — sending begins within a minute of launch.
+                  </>
+                )}
               </div>
             </div>
           )}
