@@ -222,6 +222,8 @@ export interface EmailMessage {
   message_id: string | null;
   in_reply_to: string | null;
   thread_id: string | null;
+  email_thread_id: string | null;
+  rfc_id: string | null;
   direction: 'outbound' | 'inbound';
   from_address: string | null;
   to_address: string | null;
@@ -246,6 +248,7 @@ export interface EmailThread {
   workspace_id: string;
   lead_id: string | null;
   campaign_id: string | null;
+  gmail_thread_id: string | null;
   subject: string | null;
   last_message_at: string | null;
   message_count: number;

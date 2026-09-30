@@ -9,11 +9,16 @@ export interface ComposeInput {
   subject: string;
   body: string;
   inReplyTo?: string;
+  threadId?: string;
+  leadId?: string;
+  campaignId?: string;
+  emailThreadId?: string;
 }
 
 export interface SendResult {
   ok: boolean;
   messageId?: string;
+  threadId?: string;
   error?: string;
 }
 
@@ -100,22 +105,50 @@ export const emailService = {
           subject: input.subject,
           body: input.body,
           inReplyTo: input.inReplyTo,
+          threadId: input.threadId,
+          leadId: input.leadId,
+          campaignId: input.campaignId,
+          emailThreadId: input.emailThreadId,
         },
       });
       if (error) {
         const status = (error as { context?: Response }).context?.status;
         if (status === 404 || status === 409) {
-          return { ok: false, error: 'This mailbox is not connected. Connect it from Mailboxes.' };
+          const ctx = (error as { context?: Response }).context;
+          let msg = 'This mailbox is not connected. Connect it from Mailboxes.';
+          try {
+            const payload = await ctx?.json?.();
+            if (payload?.message) msg = payload.message;
+          } catch {
+            /* keep fallback */
+          }
+          return { ok: false, error: msg };
         }
         if (status === 501) {
           return { ok: false, error: messageFrom(error, 'Sending is not configured yet.') };
         }
         return { ok: false, error: messageFrom(error, 'Sending failed. Try again.') };
       }
-      if (data?.ok) return { ok: true, messageId: data.messageId ?? undefined };
+      if (data?.ok) {
+        return { ok: true, messageId: data.messageId ?? undefined, threadId: data.threadId ?? undefined };
+      }
       return { ok: false, error: data?.message ?? 'Sending failed.' };
     } catch {
       return { ok: false, error: 'Sending failed. Try again.' };
+    }
+  },
+
+  async sync(): Promise<{ ok: boolean; inbound: number; threads: number; error?: string }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('mailbox-sync', { method: 'POST' });
+      if (error) {
+        const status = (error as { context?: Response }).context?.status;
+        if (status === 401) return { ok: false, inbound: 0, threads: 0, error: 'You are not allowed to sync.' };
+        return { ok: false, inbound: 0, threads: 0, error: 'Sync failed. Try again.' };
+      }
+      return { ok: true, inbound: data?.inbound ?? 0, threads: data?.threads ?? 0 };
+    } catch {
+      return { ok: false, inbound: 0, threads: 0, error: 'Sync failed. Try again.' };
     }
   },
 

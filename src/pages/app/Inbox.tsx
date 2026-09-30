@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, Button, Badge, Input, Textarea, EmptyState, Skeleton, useToast, Tabs } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { messageService, mailboxService, leadService } from '@/services/db';
-import type { EmailThread } from '@/types';
+import type { EmailMessage, EmailThread } from '@/types';
 import { timeAgo, cn, truncate } from '@/lib/utils';
 
 const folders = [
@@ -34,8 +34,21 @@ export default function Inbox() {
   const [folder, setFolder] = useState('all');
   const [search, setSearch] = useState('');
   const [active, setActive] = useState<EmailThread | null>(null);
+  const [messages, setMessages] = useState<EmailMessage[]>([]);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const loadMessages = (t: EmailThread | null) => {
+    if (!t) {
+      setMessages([]);
+      return;
+    }
+    messageService
+      .threadMessages(t)
+      .then(setMessages)
+      .catch(() => setMessages([]));
+  };
 
   useEffect(() => {
     if (!workspace) {
@@ -47,11 +60,40 @@ export default function Inbox() {
       .then((t) => {
         setThreads(t);
         if (t.length) setActive(t[0]);
+        else loadMessages(null);
       })
       .catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to load inbox'))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace]);
+
+  useEffect(() => {
+    loadMessages(active);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id]);
+
+  const syncNow = async () => {
+    if (!workspace || syncing) return;
+    setSyncing(true);
+    try {
+      const { emailService } = await import('@/services/email');
+      const res = await emailService.sync();
+      if (!res.ok) {
+        toast.error(res.error ?? 'Sync failed');
+        return;
+      }
+      const refreshed = await messageService.threads(workspace.id);
+      setThreads(refreshed);
+      if (active) {
+        const updated = refreshed.find((t) => t.id === active.id) ?? null;
+        if (updated) setActive(updated);
+        else loadMessages(active);
+      }
+      toast.success(res.inbound > 0 ? `Synced — ${res.inbound} new repl${res.inbound === 1 ? 'y' : 'ies'}` : 'Inbox is up to date');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     let out = threads;
@@ -92,15 +134,29 @@ export default function Inbox() {
         toast.error('No lead email found for this thread');
         return;
       }
+      const last = messages[messages.length - 1];
       const res = await emailService.send({
         mailboxId: mailbox.id,
         to: lead.email,
         subject: active.subject ?? '',
         body: reply,
+        inReplyTo: last?.rfc_id ?? undefined,
+        threadId: active.gmail_thread_id ?? undefined,
+        emailThreadId: active.id,
+        leadId: lead.id,
+        campaignId: active.campaign_id ?? undefined,
       });
       if (res.ok) {
         toast.success('Reply sent');
         setReply('');
+        loadMessages(active);
+        messageService
+          .updateThread(active.id, { last_message_at: new Date().toISOString(), is_unread: false })
+          .then((t) => {
+            setThreads((prev) => prev.map((x) => (x.id === t.id ? t : x)));
+            setActive(t);
+          })
+          .catch(() => undefined);
       } else {
         toast.error(res.error ?? 'Could not send');
       }
@@ -117,7 +173,7 @@ export default function Inbox() {
         title="Inbox"
         description="Replies from your campaigns, classified and ready to act on."
         actions={
-          <Button variant="outline" onClick={() => toast.info('Syncing requires mailbox credentials')}>
+          <Button variant="outline" loading={syncing} onClick={syncNow}>
             <RefreshCw className="h-4 w-4 mr-1.5" /> Sync
           </Button>
         }
@@ -185,7 +241,7 @@ export default function Inbox() {
                   <div className="min-w-0">
                     <h2 className="text-base font-semibold text-white truncate">{active.subject}</h2>
                     <p className="text-xs text-slate-500 mt-1">
-                      {active.message_count} messages · last activity {timeAgo(active.last_message_at)}
+                      {Math.max(active.message_count ?? 0, messages.length)} messages · last activity {timeAgo(active.last_message_at)}
                     </p>
                   </div>
                   <Badge tone={tone[active.folder] ?? 'default'}>{(active.folder ?? 'all').replace('_', ' ')}</Badge>
@@ -220,19 +276,35 @@ export default function Inbox() {
               </div>
 
               <div className="px-5 py-4 space-y-3 max-h-[38vh] overflow-y-auto">
-                <div className="rounded-xl border border-white/8 bg-white/4 p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-white">Lead reply</span>
-                    <span className="text-[11px] text-slate-600">{timeAgo(active.last_message_at)}</span>
-                  </div>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    {active.classification === 'positive'
-                      ? 'Sounds interesting — can you send over some details and a time to talk?'
-                      : active.classification === 'not_interested'
-                        ? "Thanks, but we're not looking at this right now. Please remove me from your list."
-                        : 'Thanks for reaching out. Could you share more information about pricing?'}
+                {messages.length === 0 ? (
+                  <p className="text-sm text-slate-500 py-4 text-center">
+                    No messages loaded yet — press Sync to pull this conversation from Gmail.
                   </p>
-                </div>
+                ) : (
+                  messages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={cn(
+                        'rounded-xl border p-4',
+                        m.direction === 'inbound'
+                          ? 'border-primary-500/25 bg-primary-500/5'
+                          : 'border-white/8 bg-white/4'
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2 gap-3">
+                        <span className="text-xs font-medium text-white truncate">
+                          {m.direction === 'inbound' ? m.from_address ?? 'Lead' : `You${m.to_address ? ` → ${m.to_address}` : ''}`}
+                        </span>
+                        <span className="text-[11px] text-slate-600 whitespace-nowrap">
+                          {timeAgo(m.sent_at ?? m.created_at)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words">
+                        {m.body || m.preview_text || '(empty message)'}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
 
               <div className="px-5 py-4 border-t border-white/8">

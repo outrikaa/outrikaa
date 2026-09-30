@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Users, Megaphone, Send, Reply, CalendarCheck, TrendingUp, Plus, Sparkles,
+  Users, Megaphone, Send, Reply, TrendingUp, Plus, Sparkles,
   ArrowUpRight, Clock, BarChart3,
 } from 'lucide-react';
 import { PageHeader, StatCard } from '@/components/PageHeader';
@@ -136,7 +136,7 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Delivered" value={formatNumber(summary?.delivered ?? 0)} icon={<Send className="h-4 w-4" />} hint="30 days" />
         <StatCard label="Opened" value={formatPercent(summary?.openRate ?? 0)} icon={<TrendingUp className="h-4 w-4" />} hint={`${summary?.opened ?? 0} opens`} />
-        <StatCard label="Meetings booked" value={summary?.meetings ?? 0} icon={<CalendarCheck className="h-4 w-4" />} hint="from replies" />
+        <StatCard label="Replies" value={formatNumber(summary?.replied ?? 0)} icon={<Reply className="h-4 w-4" />} hint={`${summary?.positiveReplies ?? 0} positive`} />
         <StatCard label="Bounces" value={formatPercent(summary?.bounceRate ?? 0)} icon={<BarChart3 className="h-4 w-4" />} hint={`${summary?.bounced ?? 0} bounced`} />
       </div>
 

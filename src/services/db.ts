@@ -175,6 +175,20 @@ export const messageService = {
     db.list<EmailMessage>('email_messages', { filters: { workspace_id: workspaceId }, ...opts }),
   threads: (workspaceId: string) =>
     db.list<EmailThread>('email_threads', { filters: { workspace_id: workspaceId }, orderBy: { column: 'last_message_at', ascending: false } }),
+  threadMessages: async (thread: EmailThread): Promise<EmailMessage[]> => {
+    const byRow = await db.list<EmailMessage>('email_messages', {
+      filters: { email_thread_id: thread.id },
+      orderBy: { column: 'created_at', ascending: true },
+    });
+    if (!thread.gmail_thread_id) return byRow;
+    const byGmail = await db.list<EmailMessage>('email_messages', {
+      filters: { thread_id: thread.gmail_thread_id, workspace_id: thread.workspace_id },
+      orderBy: { column: 'created_at', ascending: true },
+    });
+    const seen = new Set(byRow.map((m) => m.id));
+    const merged = [...byRow, ...byGmail.filter((m) => !seen.has(m.id))];
+    return merged.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  },
   updateThread: (id: string, values: Partial<EmailThread>) => db.update<EmailThread>('email_threads', id, values),
   scheduled: (workspaceId: string) =>
     db.list<ScheduledEmail & { lead?: Lead; campaign?: Campaign }>('scheduled_emails', {

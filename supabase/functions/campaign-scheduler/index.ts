@@ -7,7 +7,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders, json } from '../_shared/crypto.ts';
-import { refreshGmailToken, sendGmail, renderVars, unsubscribeFooter } from '../_shared/gmail.ts';
+import { refreshGmailToken, sendGmail, renderVars, wrapHtml, textToHtml, unsubscribeUrl } from '../_shared/gmail.ts';
 
 const SEND_BATCH = 25;
 const MAX_ATTEMPTS = 3;
@@ -243,6 +243,22 @@ async function processJob(admin: Db, c: CampaignRow, job: Record<string, unknown
     return;
   }
 
+  if (lead?.status === 'unsubscribed' || lead?.unsubscribed_at) {
+    await admin
+      .from('scheduled_emails')
+      .update({ status: 'canceled', error: 'unsubscribed' })
+      .eq('id', jobId);
+    const { data: cl } = await admin
+      .from('campaign_leads')
+      .select('id')
+      .eq('campaign_id', c.id)
+      .eq('lead_id', leadId)
+      .maybeSingle();
+    if (cl) await admin.from('campaign_leads').update({ status: 'unsubscribed' }).eq('id', cl.id);
+    stats.deferred++;
+    return;
+  }
+
   const win = windowState(c, new Date());
   if (!win.open) {
     await defer(win.nextOpen, 'outside_sending_window');
@@ -343,16 +359,38 @@ async function processJob(admin: Db, c: CampaignRow, job: Record<string, unknown
   };
 
   let subject = renderVars(subjectRaw, vars);
-  let body = renderVars(bodyRaw, vars);
-  if (c.unsubscribe_enabled) body += unsubscribeFooter();
-  if (!vars.first_name && !vars.last_name) subject = subject.replace(/^Re:\s*/, '');
+  const renderedBody = renderVars(bodyRaw, vars);
+  const uUrl = c.unsubscribe_enabled ? unsubscribeUrl(c.id, leadId) : undefined;
+
+  // Continue the conversation in the same Gmail thread when we already sent to this lead.
+  const { data: prevMsg } = await admin
+    .from('email_messages')
+    .select('thread_id, rfc_id')
+    .eq('campaign_id', c.id)
+    .eq('lead_id', leadId)
+    .eq('direction', 'outbound')
+    .not('thread_id', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const threadId = (prevMsg?.thread_id as string) ?? undefined;
+  const inReplyTo = (prevMsg?.rfc_id as string) ?? undefined;
+  if (threadId && !/^re:/i.test(subject)) subject = `Re: ${subject}`;
+
+  let text = renderedBody;
+  if (uUrl) text += `\n\nUnsubscribe: ${uUrl}`;
+  const html = wrapHtml(textToHtml(renderedBody), uUrl);
 
   const outcome = await sendGmail({
     accessToken,
     from: mailbox.email_address as string,
     to: (lead?.email as string) ?? '',
     subject,
-    body,
+    text,
+    html,
+    unsubscribeUrl: uUrl,
+    threadId,
+    inReplyTo,
   });
 
   if (!outcome.ok) {
@@ -392,11 +430,14 @@ async function processJob(admin: Db, c: CampaignRow, job: Record<string, unknown
     mailbox_id: mailbox.id as string,
     sequence_step_id: job.sequence_step_id ?? null,
     message_id: outcome.messageId ?? null,
+    thread_id: outcome.threadId ?? null,
+    rfc_id: outcome.rfcId ?? null,
+    in_reply_to: inReplyTo ?? null,
     from_address: mailbox.email_address as string,
     to_address: (lead?.email as string) ?? '',
     subject,
-    preview_text: null,
-    body,
+    preview_text: renderedBody.slice(0, 140),
+    body: renderedBody,
     status: 'sent',
     sent_at: new Date().toISOString(),
   });
@@ -429,7 +470,7 @@ async function processCampaign(admin: Db, c: CampaignRow, stats: Stats): Promise
 
   const { data: enrolled } = await admin
     .from('campaign_leads')
-    .select('id, lead_id, current_step')
+    .select('id, lead_id, current_step, leads(status, unsubscribed_at)')
     .eq('campaign_id', c.id)
     .limit(5000);
   if (!enrolled?.length) return;
@@ -446,6 +487,8 @@ async function processCampaign(admin: Db, c: CampaignRow, stats: Stats): Promise
   let stagger = 0;
   for (const en of enrolled) {
     if (queuedLeads.has(en.lead_id)) continue;
+    const leadRef = en.leads as { status?: string; unsubscribed_at?: string | null } | null;
+    if (leadRef?.status === 'unsubscribed' || leadRef?.unsubscribed_at) continue;
     const delaySec = Math.max(Number(c.delay_between_emails ?? 30), 10);
     const ok = await queueNext(admin, c, en.lead_id, Number(en.current_step ?? 0), new Date(Date.now() + stagger * delaySec * 1000));
     if (ok) stats.queued++;
@@ -457,7 +500,7 @@ async function processCampaign(admin: Db, c: CampaignRow, stats: Stats): Promise
   const { data: due } = await admin
     .from('scheduled_emails')
     .select(
-      'id, lead_id, sequence_step_id, subject, body, attempts, leads:leads(id, first_name, last_name, email, company, job_title, location, industry), mailboxes:mailboxes(id, email_address, provider, status, sent_today, sent_date, daily_limit)'
+      'id, lead_id, sequence_step_id, subject, body, attempts, leads:leads(id, first_name, last_name, email, company, job_title, location, industry, status, unsubscribed_at), mailboxes:mailboxes(id, email_address, provider, status, sent_today, sent_date, daily_limit)'
     )
     .eq('campaign_id', c.id)
     .eq('status', 'scheduled')

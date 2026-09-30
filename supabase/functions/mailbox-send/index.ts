@@ -1,15 +1,12 @@
-// Send an email through a connected Gmail mailbox.
+// Send an email through a connected Gmail mailbox (Inbox replies, manual sends).
 //
-// POST { mailboxId, to, subject, body, inReplyTo? }
-//   1. verifies the caller's JWT and workspace membership (via service role reads)
-//   2. loads + refreshes OAuth tokens from mailbox_credentials
-//   3. sends via Gmail API users.messages.send
+// POST { mailboxId, to, subject, body, inReplyTo?, threadId?, leadId?, campaignId?, emailThreadId? }
 //
 // Deploy:  supabase functions deploy mailbox-send          (verify-jwt ON)
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders, json } from '../_shared/crypto.ts';
-import { refreshGmailToken, sendGmail } from '../_shared/gmail.ts';
+import { refreshGmailToken, sendGmail, wrapHtml, textToHtml, unsubscribeUrl } from '../_shared/gmail.ts';
 
 interface SendBody {
   mailboxId?: string;
@@ -17,6 +14,10 @@ interface SendBody {
   subject?: string;
   body?: string;
   inReplyTo?: string;
+  threadId?: string;
+  leadId?: string;
+  campaignId?: string;
+  emailThreadId?: string;
 }
 
 Deno.serve(async (req) => {
@@ -43,9 +44,9 @@ Deno.serve(async (req) => {
 
   const mailboxId = body.mailboxId ?? '';
   const to = (body.to ?? '').trim();
-  const subject = (body.subject ?? '').trim();
+  const rawSubject = (body.subject ?? '').trim();
   const message = body.body ?? '';
-  if (!mailboxId || !to || !subject) {
+  if (!mailboxId || !to || !rawSubject) {
     return json({ error: 'missing_fields', message: 'mailboxId, to and subject are required.' }, 400);
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
@@ -75,6 +76,17 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!membership) return json({ error: 'forbidden', message: 'Not a workspace member.' }, 403);
 
+  if (body.leadId) {
+    const { data: unsub } = await admin
+      .from('leads')
+      .select('id, status, unsubscribed_at')
+      .eq('id', body.leadId)
+      .maybeSingle();
+    if (unsub && (unsub.status === 'unsubscribed' || unsub.unsubscribed_at)) {
+      return json({ error: 'lead_unsubscribed', message: 'This lead has unsubscribed.' }, 409);
+    }
+  }
+
   const { data: cred } = await admin
     .from('mailbox_credentials')
     .select('access_token, refresh_token, token_expires_at')
@@ -101,15 +113,22 @@ Deno.serve(async (req) => {
       .eq('mailbox_id', mailboxId);
   }
 
-  const sent = await sendGmail({
+  const subject = /^re:/i.test(rawSubject) ? rawSubject : `Re: ${rawSubject}`;
+  const uUrl = body.leadId ? unsubscribeUrl(body.campaignId ?? null, body.leadId) : undefined;
+
+  const outcome = await sendGmail({
     accessToken,
     from: mailbox.email_address,
     to,
     subject,
-    body: message,
+    text: uUrl ? `${message}\n\nUnsubscribe: ${uUrl}` : message,
+    html: wrapHtml(textToHtml(message), uUrl),
+    unsubscribeUrl: uUrl,
+    replyTo: mailbox.email_address,
     inReplyTo: body.inReplyTo,
+    threadId: body.threadId,
   });
-  if (!sent.ok) {
+  if (!outcome.ok) {
     return json({ error: 'gmail_send_failed', message: 'Gmail rejected the message.' }, 502);
   }
 
@@ -118,5 +137,38 @@ Deno.serve(async (req) => {
     .update({ sent_today: (mailbox.sent_today ?? 0) + 1, last_sync_at: new Date().toISOString() })
     .eq('id', mailboxId);
 
-  return json({ ok: true, messageId: sent.messageId ?? null });
+  await admin.from('email_messages').insert({
+    workspace_id: mailbox.workspace_id,
+    campaign_id: body.campaignId ?? null,
+    lead_id: body.leadId ?? null,
+    mailbox_id: mailboxId,
+    email_thread_id: body.emailThreadId ?? null,
+    message_id: outcome.messageId ?? null,
+    thread_id: outcome.threadId ?? null,
+    rfc_id: outcome.rfcId ?? null,
+    in_reply_to: body.inReplyTo ?? null,
+    direction: 'outbound',
+    from_address: mailbox.email_address,
+    to_address: to,
+    subject,
+    preview_text: message.slice(0, 140),
+    body: message,
+    status: 'sent',
+    is_reply: true,
+    sent_at: new Date().toISOString(),
+  });
+
+  if (body.emailThreadId) {
+    await admin
+      .from('email_threads')
+      .update({ last_message_at: new Date().toISOString(), is_unread: false })
+      .eq('id', body.emailThreadId);
+    const { count } = await admin
+      .from('email_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('email_thread_id', body.emailThreadId);
+    await admin.from('email_threads').update({ message_count: count ?? 0 }).eq('id', body.emailThreadId);
+  }
+
+  return json({ ok: true, messageId: outcome.messageId ?? null, threadId: outcome.threadId ?? null });
 });

@@ -6,7 +6,7 @@ import {
   Card, CardHeader, CardTitle, CardContent, Button, Badge, Input, Select, Table,
   TableHeader, TableBody, TableRow, TableHead, TableCell, Skeleton, useToast, ConfirmDialog, EmptyState, ErrorState,
 } from '@/components/ui';
-import { campaignService, mailboxService } from '@/services/db';
+import { campaignService, mailboxService, messageService } from '@/services/db';
 import type { Campaign, CampaignLead, Lead } from '@/types';
 import { formatDateTime, formatDate, cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -24,15 +24,24 @@ export default function CampaignDetail() {
   const [stats, setStats] = useState({ sent: 0, opened: 0, replied: 0, bounced: 0 });
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !workspace) return;
     (async () => {
       try {
-        const [c, rows] = await Promise.all([campaignService.get(id), campaignService.leads(id)]);
+        const [c, rows, sent] = await Promise.all([
+          campaignService.get(id),
+          campaignService.leads(id),
+          messageService.list(workspace.id, {
+            columns: 'id',
+            filters: { campaign_id: id, direction: 'outbound' },
+            from: 0,
+            to: 9999,
+          }),
+        ]);
         if (!c) throw new Error('Campaign not found');
         setCampaign(c);
         setLeads(rows);
         setStats({
-          sent: rows.length,
+          sent: sent.length,
           opened: 0,
           replied: rows.filter((r) => r.status === 'replied').length,
           bounced: rows.filter((r) => r.status === 'bounced').length,
@@ -43,7 +52,7 @@ export default function CampaignDetail() {
         setLoading(false);
       }
     })();
-  }, [id, toast]);
+  }, [id, workspace, toast]);
 
   const update = async (values: Partial<Campaign>, opts: { silent?: boolean } = {}) => {
     if (!id) return;
