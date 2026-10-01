@@ -67,7 +67,20 @@ export const emailService = {
       });
 
       if (error) {
-        const status = (error as { context?: Response }).context?.status;
+        const ctx = (error as { context?: Response }).context;
+        const status = ctx?.status;
+        // SMTP verification failures return the provider's real reason
+        // (e.g. "535 Authentication failed") — surface it instead of a generic message.
+        if (status === 400 || status === 500 || status === 502) {
+          let msg = messageFrom(error, 'The mailbox connection could not be completed.');
+          try {
+            const payload = await ctx?.json?.();
+            if (payload?.message) msg = payload.message;
+          } catch {
+            /* keep fallback */
+          }
+          return { ok: false, message: msg };
+        }
         if (status === 501) {
           return { ok: false, needsCredentials: true, message: 'Provider credentials are not configured yet.' };
         }

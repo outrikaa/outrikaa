@@ -98,6 +98,41 @@ Deno.serve(async (req) => {
       return json({ error: 'missing_smtp_fields', message: 'SMTP host, username and password are required.' }, 400);
     }
 
+    // Verify the credentials against the real SMTP server (via the Vercel relay,
+    // since edge functions cannot open TCP) BEFORE saving the mailbox.
+    const siteUrl = Deno.env.get('SITE_URL') ?? 'https://outrikaa.vercel.app';
+    const relaySecret = Deno.env.get('CRON_SECRET') ?? '';
+    let verify: Response;
+    try {
+      verify = await fetch(`${siteUrl}/api/smtp-send`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-cron-secret': relaySecret },
+        body: JSON.stringify({
+          action: 'verify',
+          host,
+          port: Number(smtp.port) || 587,
+          secure: smtp.secure !== false,
+          username,
+          password,
+        }),
+      });
+    } catch {
+      return json({ error: 'smtp_verify_unreachable', message: 'Could not verify the SMTP settings right now — try again.' }, 502);
+    }
+    if (verify.status === 401) {
+      return json({ error: 'smtp_verify_unconfigured', message: 'SMTP verification is not configured on the server.' }, 500);
+    }
+    if (!verify.ok) {
+      let reason = 'connection failed';
+      try {
+        const payload = await verify.json();
+        reason = payload?.message || payload?.error || reason;
+      } catch {
+        /* keep fallback */
+      }
+      return json({ error: 'smtp_verify_failed', message: `SMTP verification failed: ${reason}` }, 400);
+    }
+
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     const { data: mailbox, error: mailboxError } = await admin

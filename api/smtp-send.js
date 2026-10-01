@@ -9,13 +9,10 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
-  const { host, port, secure, username, password, from, to, subject, text, html, headers } = req.body || {};
-  if (!host || !to || !subject) {
-    return res.status(400).json({ error: 'missing_fields' });
-  }
+  const { action, host, port, secure, username, password, from, to, subject, text, html, headers } = req.body || {};
 
-  try {
-    const transporter = nodemailer.createTransport({
+  const buildTransport = () =>
+    nodemailer.createTransport({
       host: String(host),
       port: Number(port) || 587,
       secure: Boolean(secure),
@@ -25,7 +22,24 @@ export default async function handler(req, res) {
       greetingTimeout: 8000,
     });
 
-    const info = await transporter.sendMail({
+  if (action === 'verify') {
+    if (!host || !username || !password) {
+      return res.status(400).json({ error: 'missing_fields', message: 'SMTP host, username and password are required.' });
+    }
+    try {
+      await buildTransport().verify();
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      return res.status(502).json({ ok: false, message: String(err?.message || err) });
+    }
+  }
+
+  if (!host || !to || !subject) {
+    return res.status(400).json({ error: 'missing_fields', message: 'host, to and subject are required.' });
+  }
+
+  try {
+    const info = await buildTransport().sendMail({
       from: from || username,
       to: String(to),
       subject: String(subject),
