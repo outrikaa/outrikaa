@@ -295,7 +295,7 @@ export default function Dashboard() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { to: '/app/leads?import=1', title: 'Import leads', desc: 'Upload a CSV and map columns' },
-              { to: '/app/mailboxes', title: 'Connect mailbox', desc: 'Gmail, Outlook or SMTP' },
+              { to: '/app/mailboxes', title: 'Connect mailbox', desc: 'Gmail, Workspace or SMTP' },
               { to: '/app/ai-writer', title: 'Draft with AI', desc: 'Generate subject lines & body' },
               { to: '/app/campaigns/new', title: 'Launch campaign', desc: 'Schedule and start sending' },
             ].map((s) => (

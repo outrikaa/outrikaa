@@ -31,6 +31,15 @@ export interface ConnectResult {
   ok: boolean;
   message: string;
   needsCredentials?: boolean;
+  redirected?: boolean;
+}
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  password: string;
 }
 
 function messageFrom(error: unknown, fallback: string): string {
@@ -47,11 +56,14 @@ function messageFrom(error: unknown, fallback: string): string {
  * and mailbox-google-callback lands back on /app/mailboxes.
  */
 export const emailService = {
-  async connect(provider: MailProvider, config: { email: string; workspaceId: string }): Promise<ConnectResult> {
+  async connect(
+    provider: MailProvider,
+    config: { email: string; workspaceId: string; smtp?: SmtpConfig }
+  ): Promise<ConnectResult> {
     try {
       const { data, error } = await supabase.functions.invoke('mailbox-connect', {
         method: 'POST',
-        body: { provider, email: config.email, workspaceId: config.workspaceId },
+        body: { provider, email: config.email, workspaceId: config.workspaceId, smtp: config.smtp },
       });
 
       if (error) {
@@ -70,7 +82,11 @@ export const emailService = {
 
       if (data?.url) {
         window.location.assign(data.url);
-        return { ok: true, message: 'Redirecting to the provider…' };
+        return { ok: true, redirected: true, message: 'Redirecting to the provider…' };
+      }
+      if (data?.ok) {
+        // Manual provider (SMTP): mailbox stored directly, no OAuth redirect.
+        return { ok: true, redirected: false, message: data?.message ?? 'Mailbox connected' };
       }
       return { ok: false, needsCredentials: true, message: data?.message ?? 'Provider credentials are not configured yet.' };
     } catch {

@@ -8,6 +8,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders, json } from '../_shared/crypto.ts';
 import { refreshGmailToken, sendGmail, wrapHtml, textToHtml, unsubscribeUrl } from '../_shared/gmail.ts';
 import { refreshMSToken, sendOutlook } from '../_shared/microsoft.ts';
+import { sendViaSmtpRelay } from '../_shared/smtp.ts';
 
 interface SendBody {
   mailboxId?: string;
@@ -65,10 +66,11 @@ Deno.serve(async (req) => {
   if (mailbox.status !== 'connected') {
     return json({ error: 'mailbox_not_connected', message: 'Mailbox is not connected.' }, 409);
   }
-  if (mailbox.provider !== 'gmail' && mailbox.provider !== 'outlook') {
+  if (mailbox.provider !== 'gmail' && mailbox.provider !== 'outlook' && mailbox.provider !== 'smtp') {
     return json({ error: 'provider_not_supported', message: 'This provider is not configured right now.' }, 501);
   }
   const isMs = mailbox.provider === 'outlook';
+  const isSmtp = mailbox.provider === 'smtp';
 
   const { data: membership } = await admin
     .from('workspace_members')
@@ -91,30 +93,32 @@ Deno.serve(async (req) => {
 
   const { data: cred } = await admin
     .from('mailbox_credentials')
-    .select('access_token, refresh_token, token_expires_at')
+    .select('access_token, refresh_token, token_expires_at, smtp_host, smtp_port, smtp_secure, smtp_username, smtp_password')
     .eq('mailbox_id', mailboxId)
     .maybeSingle();
-  if (!cred?.refresh_token) {
+  if (!cred || (!cred.refresh_token && !isSmtp)) {
     return json({ error: 'mailbox_not_connected', message: 'Reconnect this mailbox.' }, 409);
   }
 
   let accessToken = cred.access_token ?? '';
-  const expired = cred.token_expires_at ? new Date(cred.token_expires_at).getTime() < Date.now() + 60_000 : true;
-  if (expired || !accessToken) {
-    const refreshed = isMs
-      ? await refreshMSToken(cred.refresh_token)
-      : await refreshGmailToken(cred.refresh_token);
-    if (!refreshed?.access_token) {
-      return json({ error: 'token_refresh_failed', message: 'Reconnect this mailbox.' }, 401);
+  if (!isSmtp) {
+    const expired = cred.token_expires_at ? new Date(cred.token_expires_at).getTime() < Date.now() + 60_000 : true;
+    if (expired || !accessToken) {
+      const refreshed = isMs
+        ? await refreshMSToken(cred.refresh_token)
+        : await refreshGmailToken(cred.refresh_token);
+      if (!refreshed?.access_token) {
+        return json({ error: 'token_refresh_failed', message: 'Reconnect this mailbox.' }, 401);
+      }
+      accessToken = refreshed.access_token;
+      await admin
+        .from('mailbox_credentials')
+        .update({
+          access_token: accessToken,
+          token_expires_at: new Date(Date.now() + Number(refreshed.expires_in ?? 3500) * 1000).toISOString(),
+        })
+        .eq('mailbox_id', mailboxId);
     }
-    accessToken = refreshed.access_token;
-    await admin
-      .from('mailbox_credentials')
-      .update({
-        access_token: accessToken,
-        token_expires_at: new Date(Date.now() + Number(refreshed.expires_in ?? 3500) * 1000).toISOString(),
-      })
-      .eq('mailbox_id', mailboxId);
   }
 
   const subject = /^re:/i.test(rawSubject) ? rawSubject : `Re: ${rawSubject}`;
@@ -122,30 +126,44 @@ Deno.serve(async (req) => {
   const text = uUrl ? `${message}\n\nUnsubscribe: ${uUrl}` : message;
   const html = wrapHtml(textToHtml(message), uUrl);
 
-  const outcome = isMs
-    ? await sendOutlook({
-        accessToken,
-        to,
-        subject,
-        text,
-        html,
-        unsubscribeUrl: uUrl,
-        conversationId: body.threadId,
-        inReplyTo: body.inReplyTo,
-        references: body.inReplyTo,
-      })
-    : await sendGmail({
-        accessToken,
+  const outcome = isSmtp
+    ? await sendViaSmtpRelay({
+        host: cred.smtp_host as string,
+        port: Number(cred.smtp_port) || 587,
+        secure: cred.smtp_secure !== false,
+        username: cred.smtp_username as string,
+        password: cred.smtp_password as string,
         from: mailbox.email_address,
         to,
         subject,
         text,
         html,
         unsubscribeUrl: uUrl,
-        replyTo: mailbox.email_address,
-        inReplyTo: body.inReplyTo,
-        threadId: body.threadId,
-      });
+      })
+    : isMs
+      ? await sendOutlook({
+          accessToken,
+          to,
+          subject,
+          text,
+          html,
+          unsubscribeUrl: uUrl,
+          conversationId: body.threadId,
+          inReplyTo: body.inReplyTo,
+          references: body.inReplyTo,
+        })
+      : await sendGmail({
+          accessToken,
+          from: mailbox.email_address,
+          to,
+          subject,
+          text,
+          html,
+          unsubscribeUrl: uUrl,
+          replyTo: mailbox.email_address,
+          inReplyTo: body.inReplyTo,
+          threadId: body.threadId,
+        });
   if (!outcome.ok) {
     return json({ error: 'send_failed', message: 'The provider rejected the message.' }, 502);
   }

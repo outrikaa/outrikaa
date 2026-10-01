@@ -26,6 +26,11 @@ export default function Mailboxes() {
   const [connecting, setConnecting] = useState(false);
   const [confirm, setConfirm] = useState<Mailbox | null>(null);
   const [credentialsConfigured, setCredentialsConfigured] = useState(false);
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpSecure, setSmtpSecure] = useState(true);
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPass, setSmtpPass] = useState('');
 
   useEffect(() => {
     if (!workspace) {
@@ -66,17 +71,39 @@ export default function Mailboxes() {
   const connect = async () => {
     if (!email.trim()) return toast.error('Enter the mailbox address');
     if (!workspace) return toast.error('No workspace selected');
+    if (provider === 'smtp') {
+      if (!smtpHost.trim() || !smtpUser.trim() || !smtpPass) return toast.error('Fill SMTP host, username and password');
+    }
     setConnecting(true);
-    const result = await emailService.connect(provider as MailProvider, { email, workspaceId: workspace.id });
+    const result = await emailService.connect(provider as MailProvider, {
+      email,
+      workspaceId: workspace.id,
+      smtp:
+        provider === 'smtp'
+          ? {
+              host: smtpHost.trim(),
+              port: Number(smtpPort) || 587,
+              secure: smtpSecure,
+              username: smtpUser.trim(),
+              password: smtpPass,
+            }
+          : undefined,
+    });
     setConnecting(false);
 
     if (result.ok) {
-      // Browser is navigating to the provider's consent screen; the mailbox row
-      // is created by the OAuth callback after consent succeeds.
-      toast.success(
-        `Continue in the ${isMicrosoft ? 'Microsoft' : 'Google'} window`,
-        'Approve access to finish connecting'
-      );
+      if (result.redirected) {
+        // Browser is navigating to the provider's consent screen; the mailbox row
+        // is created by the OAuth callback after consent succeeds.
+        toast.success(
+          `Continue in the ${isMicrosoft ? 'Microsoft' : 'Google'} window`,
+          'Approve access to finish connecting'
+        );
+      } else {
+        // Manual provider (SMTP): mailbox already saved.
+        toast.success('Mailbox connected', 'SMTP sending is ready');
+        if (workspace) mailboxService.list(workspace.id).then(setMailboxes).catch(() => undefined);
+      }
       setOpen(false);
       return;
     }
@@ -248,12 +275,44 @@ export default function Mailboxes() {
             ))}
           </div>
           <Input label="Mailbox address" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+
+          {provider === 'smtp' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="SMTP host" placeholder="smtp.company.com" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
+                <Input label="Port" type="number" placeholder="587" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-slate-400">Security</label>
+                <select
+                  value={smtpSecure ? 'tls' : 'starttls'}
+                  onChange={(e) => setSmtpSecure(e.target.value === 'tls')}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-primary-500/50"
+                >
+                  <option value="tls">TLS (port 465)</option>
+                  <option value="starttls">STARTTLS (port 587)</option>
+                </select>
+              </div>
+              <Input label="Username" placeholder="SMTP username" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
+              <Input label="Password" type="password" placeholder="SMTP password / app password" value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} />
+            </div>
+          )}
+
           <div className="flex items-start gap-2.5 rounded-xl border border-primary-500/25 bg-primary-500/5 p-3.5">
             <AlertTriangle className="h-4 w-4 text-primary-400 shrink-0 mt-0.5" />
             <p className="text-xs text-slate-300 leading-relaxed">
-              You will be redirected to {isMicrosoft ? 'Microsoft' : 'Google'} to approve access. The mailbox is
-              saved only after the signed-in {isMicrosoft ? 'Microsoft' : 'Google'} account matches{' '}
-              <span className="text-white">{email || 'this address'}</span>.
+              {provider === 'smtp' ? (
+                <>
+                  SMTP credentials are stored server-side and used only for sending. Reply sync is not available
+                  for Custom SMTP; use Gmail or Google Workspace for full inbox tracking.
+                </>
+              ) : (
+                <>
+                  You will be redirected to {isMicrosoft ? 'Microsoft' : 'Google'} to approve access. The mailbox
+                  is saved only after the signed-in {isMicrosoft ? 'Microsoft' : 'Google'} account matches{' '}
+                  <span className="text-white">{email || 'this address'}</span>.
+                </>
+              )}
             </p>
           </div>
         </div>

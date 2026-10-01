@@ -47,7 +47,12 @@ Deno.serve(async (req) => {
   if (userError || !userData?.user) return json({ error: 'unauthorized' }, 401);
   const user = userData.user;
 
-  let body: { provider?: string; email?: string; workspaceId?: string };
+  let body: {
+    provider?: string;
+    email?: string;
+    workspaceId?: string;
+    smtp?: { host?: string; port?: number; secure?: boolean; username?: string; password?: string };
+  };
   try {
     body = await req.json();
   } catch {
@@ -60,10 +65,11 @@ Deno.serve(async (req) => {
 
   const isGoogle = GOOGLE_PROVIDERS.has(provider);
   const isMicrosoft = MICROSOFT_PROVIDERS.has(provider);
+  const isSmtp = provider === 'smtp';
 
-  if (!isGoogle && !isMicrosoft) {
+  if (!isGoogle && !isMicrosoft && !isSmtp) {
     return json(
-      { error: 'provider_not_supported', message: 'Custom SMTP is not configured right now.' },
+      { error: 'provider_not_supported', message: 'This provider is not supported.' },
       501
     );
   }
@@ -81,6 +87,54 @@ Deno.serve(async (req) => {
     .eq('user_id', user.id)
     .maybeSingle();
   if (memberError || !membership) return json({ error: 'forbidden', message: 'Not a workspace member.' }, 403);
+
+  // Custom SMTP: no OAuth — store the provided connection details directly.
+  if (isSmtp) {
+    const smtp = body.smtp ?? {};
+    const host = (smtp.host ?? '').trim();
+    const username = (smtp.username ?? '').trim();
+    const password = smtp.password ?? '';
+    if (!host || !username || !password) {
+      return json({ error: 'missing_smtp_fields', message: 'SMTP host, username and password are required.' }, 400);
+    }
+
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    const { data: mailbox, error: mailboxError } = await admin
+      .from('mailboxes')
+      .upsert(
+        {
+          workspace_id: workspaceId,
+          email_address: email,
+          provider: 'smtp',
+          status: 'connected',
+          health_score: 100,
+          connected_at: new Date().toISOString(),
+          disconnected_at: null,
+          last_sync_at: new Date().toISOString(),
+        },
+        { onConflict: 'workspace_id,email_address' }
+      )
+      .select('id')
+      .single();
+    if (mailboxError || !mailbox) return json({ error: 'mailbox_save_failed' }, 500);
+
+    const { error: credError } = await admin.from('mailbox_credentials').upsert(
+      {
+        mailbox_id: mailbox.id,
+        provider: 'smtp',
+        smtp_host: host,
+        smtp_port: Number(smtp.port) || 587,
+        smtp_secure: smtp.secure !== false,
+        smtp_username: username,
+        smtp_password: password,
+      },
+      { onConflict: 'mailbox_id' }
+    );
+    if (credError) return json({ error: 'credential_save_failed' }, 500);
+
+    return json({ ok: true, smtp: true });
+  }
 
   const stateP = isMicrosoft ? 'outlook' : 'gmail';
   const signingSecret = isMicrosoft ? msSecret : googleSecret;

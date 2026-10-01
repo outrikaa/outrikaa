@@ -9,6 +9,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders, json } from '../_shared/crypto.ts';
 import { refreshGmailToken, sendGmail, renderVars, wrapHtml, textToHtml, unsubscribeUrl } from '../_shared/gmail.ts';
 import { refreshMSToken, sendOutlook } from '../_shared/microsoft.ts';
+import { sendViaSmtpRelay } from '../_shared/smtp.ts';
 
 const SEND_BATCH = 25;
 const MAX_ATTEMPTS = 3;
@@ -240,11 +241,12 @@ async function processJob(admin: Db, c: CampaignRow, job: Record<string, unknown
   };
 
   const provider = ((mailbox?.provider as string) ?? 'gmail');
-  if (!mailbox || mailbox.status !== 'connected' || (provider !== 'gmail' && provider !== 'outlook')) {
+  if (!mailbox || mailbox.status !== 'connected' || !['gmail', 'outlook', 'smtp'].includes(provider)) {
     await defer(new Date(Date.now() + 15 * 60_000), 'mailbox_unavailable');
     return;
   }
   const isMs = provider === 'outlook';
+  const isSmtp = provider === 'smtp';
 
   if (lead?.status === 'unsubscribed' || lead?.unsubscribed_at) {
     await admin
@@ -318,10 +320,10 @@ async function processJob(admin: Db, c: CampaignRow, job: Record<string, unknown
 
   const { data: cred } = await admin
     .from('mailbox_credentials')
-    .select('access_token, refresh_token, token_expires_at')
+    .select('access_token, refresh_token, token_expires_at, smtp_host, smtp_port, smtp_secure, smtp_username, smtp_password')
     .eq('mailbox_id', mailbox.id as string)
     .maybeSingle();
-  if (!cred?.refresh_token) {
+  if (!cred || (!cred.refresh_token && !isSmtp)) {
     await releaseSlot();
     await admin
       .from('scheduled_emails')
@@ -332,24 +334,26 @@ async function processJob(admin: Db, c: CampaignRow, job: Record<string, unknown
   }
 
   let accessToken = cred.access_token ?? '';
-  const expired = cred.token_expires_at ? new Date(cred.token_expires_at).getTime() < Date.now() + 60_000 : true;
-  if (expired || !accessToken) {
-    const refreshed = isMs
-      ? await refreshMSToken(cred.refresh_token)
-      : await refreshGmailToken(cred.refresh_token);
-    if (!refreshed?.access_token) {
-      await releaseSlot();
-      await defer(new Date(Date.now() + 10 * 60_000), 'token_refresh_failed');
-      return;
+  if (!isSmtp) {
+    const expired = cred.token_expires_at ? new Date(cred.token_expires_at).getTime() < Date.now() + 60_000 : true;
+    if (expired || !accessToken) {
+      const refreshed = isMs
+        ? await refreshMSToken(cred.refresh_token)
+        : await refreshGmailToken(cred.refresh_token);
+      if (!refreshed?.access_token) {
+        await releaseSlot();
+        await defer(new Date(Date.now() + 10 * 60_000), 'token_refresh_failed');
+        return;
+      }
+      accessToken = refreshed.access_token;
+      await admin
+        .from('mailbox_credentials')
+        .update({
+          access_token: accessToken,
+          token_expires_at: new Date(Date.now() + Number(refreshed.expires_in ?? 3500) * 1000).toISOString(),
+        })
+        .eq('mailbox_id', mailbox.id as string);
     }
-    accessToken = refreshed.access_token;
-    await admin
-      .from('mailbox_credentials')
-      .update({
-        access_token: accessToken,
-        token_expires_at: new Date(Date.now() + Number(refreshed.expires_in ?? 3500) * 1000).toISOString(),
-      })
-      .eq('mailbox_id', mailbox.id as string);
   }
 
   const vars: Record<string, string | null> = {
@@ -386,29 +390,43 @@ async function processJob(admin: Db, c: CampaignRow, job: Record<string, unknown
   if (uUrl) text += `\n\nUnsubscribe: ${uUrl}`;
   const html = wrapHtml(textToHtml(renderedBody), uUrl);
 
-  const outcome = isMs
-    ? await sendOutlook({
-        accessToken,
-        to: (lead?.email as string) ?? '',
-        subject,
-        text,
-        html,
-        unsubscribeUrl: uUrl,
-        conversationId: threadId,
-        inReplyTo,
-        references: inReplyTo,
-      })
-    : await sendGmail({
-        accessToken,
+  const outcome = isSmtp
+    ? await sendViaSmtpRelay({
+        host: cred.smtp_host as string,
+        port: Number(cred.smtp_port) || 587,
+        secure: cred.smtp_secure !== false,
+        username: cred.smtp_username as string,
+        password: cred.smtp_password as string,
         from: mailbox.email_address as string,
         to: (lead?.email as string) ?? '',
         subject,
         text,
         html,
         unsubscribeUrl: uUrl,
-        threadId,
-        inReplyTo,
-      });
+      })
+    : isMs
+      ? await sendOutlook({
+          accessToken,
+          to: (lead?.email as string) ?? '',
+          subject,
+          text,
+          html,
+          unsubscribeUrl: uUrl,
+          conversationId: threadId,
+          inReplyTo,
+          references: inReplyTo,
+        })
+      : await sendGmail({
+          accessToken,
+          from: mailbox.email_address as string,
+          to: (lead?.email as string) ?? '',
+          subject,
+          text,
+          html,
+          unsubscribeUrl: uUrl,
+          threadId,
+          inReplyTo,
+        });
 
   if (!outcome.ok) {
     await releaseSlot();
