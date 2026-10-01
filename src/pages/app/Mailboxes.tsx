@@ -12,8 +12,6 @@ import { formatDate, cn } from '@/lib/utils';
 const providers = [
   { id: 'gmail', label: 'Gmail', desc: 'Personal Google account via OAuth' },
   { id: 'google', label: 'Google Workspace', desc: 'Workspaces via OAuth' },
-  { id: 'outlook', label: 'Outlook', desc: 'Personal Microsoft account via OAuth' },
-  { id: 'microsoft365', label: 'Microsoft 365', desc: 'Business tenants via OAuth' },
   { id: 'smtp', label: 'Custom SMTP', desc: 'Any provider with app credentials' },
 ];
 
@@ -28,7 +26,6 @@ export default function Mailboxes() {
   const [connecting, setConnecting] = useState(false);
   const [confirm, setConfirm] = useState<Mailbox | null>(null);
   const [credentialsConfigured, setCredentialsConfigured] = useState(false);
-  const [outlookConfigured, setOutlookConfigured] = useState(false);
 
   useEffect(() => {
     if (!workspace) {
@@ -44,10 +41,7 @@ export default function Mailboxes() {
   }, [workspace]);
 
   useEffect(() => {
-    emailService.status().then((s) => {
-      setCredentialsConfigured(s.configured);
-      setOutlookConfigured(s.outlookConfigured);
-    });
+    emailService.status().then((s) => setCredentialsConfigured(s.configured));
 
     const params = new URLSearchParams(window.location.search);
     const connected = params.get('connected');
@@ -118,15 +112,14 @@ export default function Mailboxes() {
         actions={<Button onClick={() => setOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>Connect mailbox</Button>}
       />
 
-      {(!credentialsConfigured || !outlookConfigured) && (
+      {!credentialsConfigured && (
         <div className="mb-5 rounded-2xl border border-warning-500/25 bg-warning-500/5 p-4 flex items-start gap-3">
           <Shield className="h-[18px] w-[18px] text-warning-400 shrink-0 mt-0.5" />
           <div className="text-sm text-warning-100/90">
             <p className="font-medium">OAuth credentials are not configured yet</p>
             <p className="text-xs text-warning-200/70 mt-1 leading-relaxed">
-              {!credentialsConfigured && 'Gmail connection starts after Google OAuth credentials (Client ID / Secret) are added. '}
-              {!outlookConfigured && 'Outlook connection starts after Azure (Microsoft) OAuth credentials are added. '}
-              No passwords are ever stored in the app.
+              Gmail connection starts only after Google OAuth credentials (Client ID / Secret) are added to the
+              Supabase Edge Functions. No passwords are ever stored in the app.
             </p>
           </div>
         </div>

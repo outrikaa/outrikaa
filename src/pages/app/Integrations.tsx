@@ -10,8 +10,8 @@ import { timeAgo, cn } from '@/lib/utils';
 const catalog = [
   { provider: 'gmail', name: 'Gmail', desc: 'Send and sync from personal Google accounts.', icon: Mail, available: true },
   { provider: 'google_workspace', name: 'Google Workspace', desc: 'Organisational sending with admin consent.', icon: Building2, available: true },
-  { provider: 'outlook', name: 'Outlook', desc: 'Microsoft personal accounts via OAuth.', icon: Inbox, available: true },
-  { provider: 'microsoft365', name: 'Microsoft 365', desc: 'Tenant-wide mailboxes with Graph API.', icon: MonitorSmartphone, available: true },
+  { provider: 'outlook', name: 'Outlook', desc: 'Microsoft personal accounts via OAuth.', icon: Inbox, available: false },
+  { provider: 'microsoft365', name: 'Microsoft 365', desc: 'Tenant-wide mailboxes with Graph API.', icon: MonitorSmartphone, available: false },
   { provider: 'slack', name: 'Slack', desc: 'Push reply and campaign alerts to channels.', icon: MessageSquare, available: false },
   { provider: 'crm', name: 'CRM sync', desc: 'Two-way sync with your CRM of record.', icon: Database, available: false },
   { provider: 'webhooks', name: 'Webhooks', desc: 'Stream events to any HTTP endpoint.', icon: Webhook, available: false },
