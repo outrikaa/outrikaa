@@ -59,6 +59,8 @@ export interface OAuthState {
   ws: string;
   email: string;
   exp: number;
+  /** 'gmail' | 'outlook' — which OAuth provider signed this state. */
+  p?: string;
 }
 
 export async function signState(state: OAuthState, secret: string): Promise<string> {

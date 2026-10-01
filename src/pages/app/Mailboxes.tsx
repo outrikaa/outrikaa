@@ -5,6 +5,7 @@ import { Card, CardContent, Button, Badge, Input, Modal, EmptyState, Skeleton, u
 import { useAuth } from '@/context/AuthContext';
 import { mailboxService } from '@/services/db';
 import { emailService } from '@/services/email';
+import type { MailProvider } from '@/services/email';
 import type { Mailbox } from '@/types';
 import { formatDate, cn } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ export default function Mailboxes() {
   const [connecting, setConnecting] = useState(false);
   const [confirm, setConfirm] = useState<Mailbox | null>(null);
   const [credentialsConfigured, setCredentialsConfigured] = useState(false);
+  const [outlookConfigured, setOutlookConfigured] = useState(false);
 
   useEffect(() => {
     if (!workspace) {
@@ -42,16 +44,20 @@ export default function Mailboxes() {
   }, [workspace]);
 
   useEffect(() => {
-    emailService.status().then((s) => setCredentialsConfigured(s.configured));
+    emailService.status().then((s) => {
+      setCredentialsConfigured(s.configured);
+      setOutlookConfigured(s.outlookConfigured);
+    });
 
     const params = new URLSearchParams(window.location.search);
     const connected = params.get('connected');
     const connectError = params.get('connect_error');
     if (connected || connectError) {
-      if (connected) toast.success('Mailbox connected', 'Gmail OAuth completed');
-      else if (connectError === 'access_denied') toast.error('Google connection cancelled.');
-      else if (connectError === 'email_mismatch') toast.error('That Google account does not match the mailbox address.');
-      else toast.error('Gmail connection failed', connectError ?? 'unknown');
+      const label = connected === 'outlook' ? 'Microsoft' : 'Google';
+      if (connected) toast.success('Mailbox connected', `${label} OAuth completed`);
+      else if (connectError === 'access_denied') toast.error(`${label} connection cancelled.`);
+      else if (connectError === 'email_mismatch') toast.error(`That ${label} account does not match the mailbox address.`);
+      else toast.error(`${label} connection failed`, connectError ?? 'unknown');
       window.history.replaceState({}, '', window.location.pathname);
       if (connected && workspace) {
         mailboxService.list(workspace.id).then(setMailboxes).catch(() => undefined);
@@ -60,17 +66,23 @@ export default function Mailboxes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace]);
 
+  const isMicrosoft = provider === 'outlook' || provider === 'microsoft365';
+  const providerRow = isMicrosoft ? 'outlook' : provider === 'smtp' ? 'smtp' : 'gmail';
+
   const connect = async () => {
     if (!email.trim()) return toast.error('Enter the mailbox address');
     if (!workspace) return toast.error('No workspace selected');
     setConnecting(true);
-    const result = await emailService.connect(provider as 'gmail', { email, workspaceId: workspace.id });
+    const result = await emailService.connect(provider as MailProvider, { email, workspaceId: workspace.id });
     setConnecting(false);
 
     if (result.ok) {
-      // Browser is navigating to Google's consent screen; the mailbox row
+      // Browser is navigating to the provider's consent screen; the mailbox row
       // is created by the OAuth callback after consent succeeds.
-      toast.success('Continue in the Google window', 'Approve access to finish connecting');
+      toast.success(
+        `Continue in the ${isMicrosoft ? 'Microsoft' : 'Google'} window`,
+        'Approve access to finish connecting'
+      );
       setOpen(false);
       return;
     }
@@ -81,7 +93,7 @@ export default function Mailboxes() {
         const pending = await mailboxService.create({
           workspace_id: workspace.id,
           email_address: email,
-          provider: 'gmail',
+          provider: providerRow as Mailbox['provider'],
           status: 'needs_attention',
           daily_limit: 50,
           sent_today: 0,
@@ -106,14 +118,15 @@ export default function Mailboxes() {
         actions={<Button onClick={() => setOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>Connect mailbox</Button>}
       />
 
-      {!credentialsConfigured && (
+      {(!credentialsConfigured || !outlookConfigured) && (
         <div className="mb-5 rounded-2xl border border-warning-500/25 bg-warning-500/5 p-4 flex items-start gap-3">
           <Shield className="h-[18px] w-[18px] text-warning-400 shrink-0 mt-0.5" />
           <div className="text-sm text-warning-100/90">
             <p className="font-medium">OAuth credentials are not configured yet</p>
             <p className="text-xs text-warning-200/70 mt-1 leading-relaxed">
-              Gmail connection starts only after Google OAuth credentials (Client ID / Secret) are added to the
-              Supabase Edge Functions. No passwords are ever stored in the app.
+              {!credentialsConfigured && 'Gmail connection starts after Google OAuth credentials (Client ID / Secret) are added. '}
+              {!outlookConfigured && 'Outlook connection starts after Azure (Microsoft) OAuth credentials are added. '}
+              No passwords are ever stored in the app.
             </p>
           </div>
         </div>
@@ -245,8 +258,9 @@ export default function Mailboxes() {
           <div className="flex items-start gap-2.5 rounded-xl border border-primary-500/25 bg-primary-500/5 p-3.5">
             <AlertTriangle className="h-4 w-4 text-primary-400 shrink-0 mt-0.5" />
             <p className="text-xs text-slate-300 leading-relaxed">
-              You will be redirected to Google to approve access. The mailbox is saved only after
-              the signed-in Google account matches <span className="text-white">{email || 'this address'}</span>.
+              You will be redirected to {isMicrosoft ? 'Microsoft' : 'Google'} to approve access. The mailbox is
+              saved only after the signed-in {isMicrosoft ? 'Microsoft' : 'Google'} account matches{' '}
+              <span className="text-white">{email || 'this address'}</span>.
             </p>
           </div>
         </div>

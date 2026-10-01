@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type { Mailbox } from '@/types';
 
-export type MailProvider = 'gmail' | 'outlook' | 'smtp' | 'custom';
+export type MailProvider = 'gmail' | 'google' | 'outlook' | 'microsoft365' | 'smtp' | 'custom';
 
 export interface ComposeInput {
   mailboxId: string;
@@ -65,12 +65,12 @@ export const emailService = {
         if (status === 404) {
           return { ok: false, needsCredentials: true, message: 'Provider credentials are not configured yet.' };
         }
-        return { ok: false, message: messageFrom(error, 'Could not start the Gmail connection.') };
+        return { ok: false, message: messageFrom(error, 'Could not start the mailbox connection.') };
       }
 
       if (data?.url) {
         window.location.assign(data.url);
-        return { ok: true, message: 'Redirecting to Google…' };
+        return { ok: true, message: 'Redirecting to the provider…' };
       }
       return { ok: false, needsCredentials: true, message: data?.message ?? 'Provider credentials are not configured yet.' };
     } catch {
@@ -78,13 +78,16 @@ export const emailService = {
     }
   },
 
-  async status(): Promise<{ configured: boolean }> {
+  async status(): Promise<{ configured: boolean; outlookConfigured: boolean }> {
     try {
       const { data, error } = await supabase.functions.invoke('mailbox-connect', { method: 'GET' });
-      if (error || !data?.ok) return { configured: false };
-      return { configured: Boolean(data.google_configured) };
+      if (error || !data?.ok) return { configured: false, outlookConfigured: false };
+      return {
+        configured: Boolean(data.google_configured),
+        outlookConfigured: Boolean(data.outlook_configured),
+      };
     } catch {
-      return { configured: false };
+      return { configured: false, outlookConfigured: false };
     }
   },
 

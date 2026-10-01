@@ -7,6 +7,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders, json } from '../_shared/crypto.ts';
 import { refreshGmailToken, sendGmail, wrapHtml, textToHtml, unsubscribeUrl } from '../_shared/gmail.ts';
+import { refreshMSToken, sendOutlook } from '../_shared/microsoft.ts';
 
 interface SendBody {
   mailboxId?: string;
@@ -64,9 +65,10 @@ Deno.serve(async (req) => {
   if (mailbox.status !== 'connected') {
     return json({ error: 'mailbox_not_connected', message: 'Mailbox is not connected.' }, 409);
   }
-  if (mailbox.provider !== 'gmail') {
-    return json({ error: 'provider_not_supported', message: 'Only Gmail is configured right now.' }, 501);
+  if (mailbox.provider !== 'gmail' && mailbox.provider !== 'outlook') {
+    return json({ error: 'provider_not_supported', message: 'This provider is not configured right now.' }, 501);
   }
+  const isMs = mailbox.provider === 'outlook';
 
   const { data: membership } = await admin
     .from('workspace_members')
@@ -99,7 +101,9 @@ Deno.serve(async (req) => {
   let accessToken = cred.access_token ?? '';
   const expired = cred.token_expires_at ? new Date(cred.token_expires_at).getTime() < Date.now() + 60_000 : true;
   if (expired || !accessToken) {
-    const refreshed = await refreshGmailToken(cred.refresh_token);
+    const refreshed = isMs
+      ? await refreshMSToken(cred.refresh_token)
+      : await refreshGmailToken(cred.refresh_token);
     if (!refreshed?.access_token) {
       return json({ error: 'token_refresh_failed', message: 'Reconnect this mailbox.' }, 401);
     }
@@ -115,21 +119,35 @@ Deno.serve(async (req) => {
 
   const subject = /^re:/i.test(rawSubject) ? rawSubject : `Re: ${rawSubject}`;
   const uUrl = body.leadId ? unsubscribeUrl(body.campaignId ?? null, body.leadId) : undefined;
+  const text = uUrl ? `${message}\n\nUnsubscribe: ${uUrl}` : message;
+  const html = wrapHtml(textToHtml(message), uUrl);
 
-  const outcome = await sendGmail({
-    accessToken,
-    from: mailbox.email_address,
-    to,
-    subject,
-    text: uUrl ? `${message}\n\nUnsubscribe: ${uUrl}` : message,
-    html: wrapHtml(textToHtml(message), uUrl),
-    unsubscribeUrl: uUrl,
-    replyTo: mailbox.email_address,
-    inReplyTo: body.inReplyTo,
-    threadId: body.threadId,
-  });
+  const outcome = isMs
+    ? await sendOutlook({
+        accessToken,
+        to,
+        subject,
+        text,
+        html,
+        unsubscribeUrl: uUrl,
+        conversationId: body.threadId,
+        inReplyTo: body.inReplyTo,
+        references: body.inReplyTo,
+      })
+    : await sendGmail({
+        accessToken,
+        from: mailbox.email_address,
+        to,
+        subject,
+        text,
+        html,
+        unsubscribeUrl: uUrl,
+        replyTo: mailbox.email_address,
+        inReplyTo: body.inReplyTo,
+        threadId: body.threadId,
+      });
   if (!outcome.ok) {
-    return json({ error: 'gmail_send_failed', message: 'Gmail rejected the message.' }, 502);
+    return json({ error: 'send_failed', message: 'The provider rejected the message.' }, 502);
   }
 
   await admin
